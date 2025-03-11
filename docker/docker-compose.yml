@@ -1,0 +1,26 @@
+version: '3'
+services:
+  px4:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ../client/px4:/px4
+      - ../data:/data
+    command: bash /scripts/start_px4.sh
+  ros2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ../client/ros2:/ros2_ws
+    command: bash /scripts/start_ros2.sh
+  server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../client/server:/server
+    command: bash /scripts/start_server.sh
