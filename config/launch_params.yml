@@ -3,8 +3,3 @@ px4:
   sitl: true
   model: gz_x500
   gazebo: true
-
-# Параметры сервера
-server:
-  port: 3000
-  db_path: /data/db.sqlite

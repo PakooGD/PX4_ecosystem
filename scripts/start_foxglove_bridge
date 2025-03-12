@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Установка Foxglove Bridge
+echo "Установка Foxglove Bridge..."
+
+if ! dpkg -s ros-humble-foxglove-bridge > /dev/null 2>&1; then
+    sudo apt install -y ros-humble-foxglove-bridge
+else
+    echo "Foxglove Bridge уже установлен."
+fi
+
+# Запуск Foxglove Bridge
+echo "Запускаем Foxglove Bridge..."
+ros2 launch foxglove_bridge foxglove_bridge_launch.xml

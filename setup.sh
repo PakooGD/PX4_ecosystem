@@ -136,32 +136,21 @@ if [ ! -d "$CLIENT_DIR/foxglove-studio" ]; then
 else
     echo "Foxglove Studio уже установлен."
 fi
-# Установка Foxglove Bridge
-echo "Установка Foxglove Bridge..."
-
-if ! dpkg -s ros-humble-foxglove-bridge > /dev/null 2>&1; then
-    sudo apt install -y ros-humble-foxglove-bridge
-else
-    echo "Foxglove Bridge уже установлен."
-fi
 cd "$PROJECT_ROOT"
+
 
 ######################################## SERVER ########################################################
 
-echo "Установка серверной части..."
+echo "Установка зависимостей серверна..."
 
 cd "$SERVER_DIR"
 # Установка зависимостей
 if [ ! -d "$SERVER_DIR/node_modules" ]; then
-    yarn install
+    npm install
 else
     echo "Зависимости сервера уже установлены."
 fi
 
-# Инициализация TypeScript
-if [ ! -f "tsconfig.json" ]; then
-  yarn tsc --init
-fi
 cd "$PROJECT_ROOT"
 
 ######################################## ENV-setup ########################################################
