@@ -11,3 +11,9 @@
 2. To compile, you will need CMake version 3.21+ and Python 3.
 3. Before installing, make sure you have Qt version 6.8.2 installed. You can download it from the link: https://www.qt.io/download-qt-installer-oss
 * You can download the archive with the sources and compile it manually, but after compilation there may be problems when assembling QGC: https://www.qt.io/offline-installers
+
+# Docker
+1. Build: docker-compose build
+2. Launch conatiners: docker-compose up
+* Get access to client: docker exec -it client bash
+* Get access to server: localhost:3000

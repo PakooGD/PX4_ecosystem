@@ -1,26 +1,39 @@
-version: '3'
+version: '3.8'
+
 services:
-  px4:
+  client:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: client
     volumes:
-      - ../client/px4:/px4
-      - ../data:/data
-    command: bash /scripts/start_px4.sh
-  ros2:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    volumes:
-      - ../client/ros2:/ros2_ws
-    command: bash /scripts/start_ros2.sh
+      - ./src/client:/workspace/src/client  # Монтируем локальную директорию клиента
+      - ./scripts:/workspace/scripts        # Монтируем локальные скрипты
+      - ./config:/workspace/config          # Монтируем локальные конфиги
+    tty: true
+    stdin_open: true
+    networks:
+      - drone_network
+
   server:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: server
     ports:
       - "3000:3000"
     volumes:
-      - ../client/server:/server
-    command: bash /scripts/start_server.sh
+      - ./src/server:/workspace/src/server  # Монтируем локальную директорию сервера
+      - ./scripts:/workspace/scripts        # Монтируем локальные скрипты
+      - ./config:/workspace/config          # Монтируем локальные конфиги
+    networks:
+      - drone_network
+
+networks:
+  drone_network:
+    driver: bridge
+
+environment:
+  - DISPLAY=${DISPLAY}
+volumes:
+  - /tmp/.X11-unix:/tmp/.X11-unix
