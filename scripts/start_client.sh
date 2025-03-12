@@ -37,11 +37,14 @@ run_command() {
 }
 
 # Запуск всех клиентских компонентов
-run_command "bash $PROJECT_ROOT/scripts/start_ros2.sh"
-run_command "bash $PROJECT_ROOT/scripts/start_micro_xrce_dds.sh"
-run_command "bash $PROJECT_ROOT/scripts/start_qgc.sh"
+
 run_command "bash $PROJECT_ROOT/scripts/start_foxglove.sh"
 run_command "bash $PROJECT_ROOT/scripts/start_px4.sh"
+run_command "bash $PROJECT_ROOT/scripts/start_micro_xrce_dds.sh"
+run_command "bash $PROJECT_ROOT/scripts/start_qgc.sh"
+# ROS2 modules
+run_command "bash $PROJECT_ROOT/scripts/start_sensor_listener.sh"
+run_command "bash $PROJECT_ROOT/scripts/start_foxglove_bridge.sh"
 
 
 echo "Все компоненты запущены."

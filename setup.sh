@@ -68,6 +68,21 @@ if [ ! -d "px4_ros_com" ]; then
 else
     echo "px4_ros_com уже клонирован."
 fi
+
+# Установка Foxglove Bridge
+echo "Клонирование Foxglove Bridge..."
+
+if [ ! -d "ros-foxglove-bridge" ]; then
+    git clone https://github.com/foxglove/ros-foxglove-bridge.git --recursive
+else
+    echo "Foxglove Bridge уже установлен."
+fi
+
+cd "$CLIENT_DIR/ros2"
+source /opt/ros/humble/setup.bash
+colcon build
+source install/local_setup.bash
+
 cd "$PROJECT_ROOT"
 
 ######################################## PX4-Autopilot ########################################################
@@ -136,6 +151,7 @@ if [ ! -d "$CLIENT_DIR/foxglove-studio" ]; then
 else
     echo "Foxglove Studio уже установлен."
 fi
+
 cd "$PROJECT_ROOT"
 
 

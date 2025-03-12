@@ -1,9 +1,6 @@
 import { Sequelize, DataTypes, Model } from 'sequelize';
 
-const sequelize = new Sequelize('database', 'user', 'password', {
-  host: 'localhost',
-  dialect: 'postgres',
-});
+const sequelize = new Sequelize('postgres://user:password@localhost:5432/database');
 
 class DroneData extends Model {}
 DroneData.init({
@@ -11,5 +8,7 @@ DroneData.init({
   timestamp: { type: DataTypes.BIGINT, allowNull: false },
   data: { type: DataTypes.JSON, allowNull: false },
 }, { sequelize, modelName: 'drone_data' });
+
+sequelize.sync();
 
 export { DroneData };
