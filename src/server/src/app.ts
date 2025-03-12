@@ -1,23 +1,41 @@
-const express = require('express');
-const WebSocket = require('ws');
+import express from 'express';
+import { WebSocketServer } from 'ws';
+import { router } from './routes';
 
 const app = express();
-const port = 3000;
+const PORT = process.env.PORT || 3000;
+const wss = new WebSocketServer({ port: 8081 });
 
-// REST API
-app.get('/status', (req, res) => {
-  res.json({ status: 'OK' });
-});
+// Middleware
+app.use(express.json());
+
+// Роуты
+app.use('/api', router);
 
 // WebSocket сервер
-const wss = new WebSocket.Server({ port: 8080 });
 wss.on('connection', (ws) => {
+  console.log('New client connected');
+
   ws.on('message', (message) => {
-    console.log('Received:', message);
-    ws.send('Message received');
+    const data = JSON.parse(message.toString());
+    console.log(`Received: ${JSON.stringify(data, null, 2)}`);
+
+    // Отправка данных в Foxglove Studio
+    wss.clients.forEach((client) => {
+      if (client !== ws && client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(data));
+      }
+    });
+  });
+
+  ws.on('close', () => {
+    console.log('Client disconnected');
   });
 });
 
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+// Запуск HTTP сервера
+app.listen(PORT, () => {
+  console.log(`HTTP server running on port ${PORT}`);
 });
+
+console.log(`WebSocket server running on ws://localhost:8081`);
