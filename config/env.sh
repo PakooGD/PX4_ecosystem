@@ -1,5 +1,6 @@
 # Переменные окружения
-export PROJECT_ROOT=/project
-export PATH=$PATH:/px4/Tools
-export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:/px4/Tools/sitl_gazebo/models
+export PROJECT_ROOT=~/PX4_ecosystem
+export QT_PATH=/usr/local/Qt-6.8.2/bin:$PATH
+export PATH=$PATH:$PROJECT_ROOT/src/client/PX4-Autopilot/Tools
+export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:$PROJECT_ROOT/src/client/PX4-Autopilot/Tools/simulation/gz/models
 source /opt/ros/humble/setup.bash

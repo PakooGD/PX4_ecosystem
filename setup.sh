@@ -1,100 +1,185 @@
 #!/bin/bash
 
+# Установка глобальных переменных
+PROJECT_ROOT=$(pwd)
+CLIENT_DIR="$PROJECT_ROOT/src/client"
+SERVER_DIR="$PROJECT_ROOT/src/server"
+
+# Функция для проверки и установки пакетов
+install_package() {
+    local package_name=$1
+    local install_command=$2
+
+    if ! command -v "$package_name" &> /dev/null; then
+        echo "Установка $package_name..."
+        eval "$install_command"
+    else
+        echo "$package_name уже установлен."
+    fi
+}
+
 ######################################## Dependencies ########################################################
 
-# Node.js
-if ! command -v node &> /dev/null; then
-    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-    \. "$HOME/.nvm/nvm.sh"
-    nvm install 22
-    corepack enable
-fi
+# Установка Node.js через nvm
+install_package "node" "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && \. \"$HOME/.nvm/nvm.sh\" && nvm install 22 && corepack enable"
+
+# Установка yq
+install_package "yq" "sudo snap install yq"
+
+# Установка python
+install_package "pip" "pip install --user -U empy==3.3.4 pyros-genmsg setuptools"
 
 ######################################## ROS 2 Humble ########################################################
 
-sudo apt update && sudo apt install locales
-sudo locale-gen en_US en_US.UTF-8
-sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
-export LANG=en_US.UTF-8
-sudo apt install software-properties-common
-sudo add-apt-repository universe
-sudo apt update && sudo apt install curl -y
-sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-sudo apt update && sudo apt upgrade -y
-sudo apt install ros-humble-desktop
-sudo apt install ros-dev-tools
-source /opt/ros/humble/setup.bash && echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+echo "Установка ROS 2 Humble..."
+
+# Проверка, установлен ли ROS 2
+if ! command -v ros2 &> /dev/null; then
+    sudo apt update && sudo apt install -y locales
+    sudo locale-gen en_US en_US.UTF-8
+    sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+    export LANG=en_US.UTF-8
+    sudo apt install -y software-properties-common
+    sudo add-apt-repository universe
+    sudo apt update && sudo apt install -y curl
+    sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+    sudo apt update && sudo apt upgrade -y
+    sudo apt install -y ros-humble-desktop ros-dev-tools
+    echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+    source /opt/ros/humble/setup.bash
+else
+    echo "ROS 2 уже установлен."
+fi
+
+# Клонирование репозиториев PX4 для ROS 2
+echo "Клонирование px4_msgs и px4_ros_com..."
+
+mkdir -p "$CLIENT_DIR/ros2/src"
+cd "$CLIENT_DIR/ros2/src"
+if [ ! -d "px4_msgs" ]; then
+    git clone https://github.com/PX4/px4_msgs.git --recursive
+else
+    echo "px4_msgs уже клонирован."
+fi
+
+if [ ! -d "px4_ros_com" ]; then
+    git clone https://github.com/PX4/px4_ros_com.git --recursive
+else
+    echo "px4_ros_com уже клонирован."
+fi
+cd "$PROJECT_ROOT"
 
 ######################################## PX4-Autopilot ########################################################
 
-git clone https://github.com/PX4/PX4-Autopilot.git --recursive src/client/px4
-bash ./src/client/px4/Tools/setup/ubuntu.sh
-cd src/client/px4
-sudo apt-get update
-sudo apt-get install curl lsb-release gnupg
-sudo curl https://packages.osrfoundation.org/gazebo.gpg --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
-sudo apt-get update
-sudo apt-get install gz-harmonic
-make px4_sitl
-cd ../../../
+echo "Установка PX4-Autopilot и Gazebo Harmonic..."
+
+if [ ! -d "$CLIENT_DIR/PX4-Autopilot" ]; then
+    cd "$CLIENT_DIR"
+    git clone https://github.com/PX4/PX4-Autopilot.git --recursive
+    cd "$CLIENT_DIR/PX4-Autopilot"
+    bash ./Tools/setup/ubuntu.sh
+    sudo apt-get update
+    sudo apt-get install -y curl lsb-release gnupg
+    sudo curl https://packages.osrfoundation.org/gazebo.gpg --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+    sudo apt-get update
+    sudo apt-get install -y gz-harmonic
+    make px4_sitl
+else
+    echo "PX4-Autopilot и Gazebo Harmonic уже установлены."
+fi
+cd "$PROJECT_ROOT"
 
 ######################################## Micro XRCE-DDS Agent ########################################################
 
-pip install --user -U empy==3.3.4 pyros-genmsg setuptools
-git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git src/client/client/micro_xrce_dds
-cd src/client/micro_xrce_dds
-mkdir build
-cd build
-cmake ..
-make
-sudo make install
-sudo ldconfig /usr/local/lib/
-cd ../../../
+echo "Установка Micro XRCE-DDS Agent..."
+
+if [ ! -d "$CLIENT_DIR/micro_xrce_dds" ]; then
+    mkdir -p "$CLIENT_DIR/micro_xrce_dds"
+    cd "$CLIENT_DIR/micro_xrce_dds"
+    git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git .
+    mkdir build
+else
+    echo "Micro XRCE-DDS Agent уже установлен."
+fi
+cd "$PROJECT_ROOT"
 
 ######################################## QGroundControl ########################################################
 
-sudo usermod -a -G dialout $USER
-sudo apt-get remove modemmanager -y
-sudo apt install gstreamer1.0-plugins-bad gstreamer1.0-libav gstreamer1.0-gl -y
-sudo apt install libqt5gui5 -y
-sudo apt install libfuse2 -y
-sudo apt install wget -y
-sudo apt install libxcb-cursor0 -y
-git clone --recursive -j8 https://github.com/mavlink/qgroundcontrol.git src/client/qgroundcontrol
-cd src/client/qgroundcontrol
-git submodule update --recursive
-sudo bash ./tools/setup/install-dependencies-debian.sh
-~/Qt/6.8.2/gcc_64/bin/qt-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
-cd ../../../
+echo "Установка QGroundControl..."
+
+if [ ! -d "$CLIENT_DIR/qgroundcontrol" ]; then
+    cd "$CLIENT_DIR"
+    sudo usermod -a -G dialout $USER
+    sudo apt-get remove -y modemmanager
+    sudo apt install -y gstreamer1.0-plugins-bad gstreamer1.0-libav gstreamer1.0-gl libqt5gui5 libfuse2 wget libxcb-cursor0
+    sudo apt install -y build-essential libgl1-mesa-dev libssl-dev libxkbcommon-dev libxcb-xinerama0-dev libxcb-xinerama0
+    git clone --recursive -j8 https://github.com/mavlink/qgroundcontrol.git 
+    git submodule update --recursive
+        cd "$CLIENT_DIR/qgroundcontrol"
+    sudo bash ./tools/setup/install-dependencies-debian.sh
+else
+    echo "QGroundControl уже установлен."
+fi
+cd "$PROJECT_ROOT"
 
 ######################################## FOXGLOVE ########################################################
 
-# Установка Foxglove Studio
-git clone https://github.com/dagar/foxglove-studio.git src/client/foxglove
-cd src/client/foxglove
-yarn install
-cd ../../../
+echo "Установка Foxglove Studio..."
 
+if [ ! -d "$CLIENT_DIR/foxglove-studio" ]; then
+    cd "$CLIENT_DIR"
+    git clone https://github.com/dagar/foxglove-studio.git
+    cd "$CLIENT_DIR/foxglove-studio"
+    yarn install
+else
+    echo "Foxglove Studio уже установлен."
+fi
 # Установка Foxglove Bridge
-sudo apt install ros-humble-foxglove-bridge
+echo "Установка Foxglove Bridge..."
+
+if ! dpkg -s ros-humble-foxglove-bridge > /dev/null 2>&1; then
+    sudo apt install -y ros-humble-foxglove-bridge
+else
+    echo "Foxglove Bridge уже установлен."
+fi
+cd "$PROJECT_ROOT"
 
 ######################################## SERVER ########################################################
 
-cd src/server
+echo "Установка серверной части..."
 
+cd "$SERVER_DIR"
 # Установка зависимостей
-yarn install
+if [ ! -d "$SERVER_DIR/node_modules" ]; then
+    yarn install
+else
+    echo "Зависимости сервера уже установлены."
+fi
 
 # Инициализация TypeScript
 if [ ! -f "tsconfig.json" ]; then
-  npx tsc --init
+  yarn tsc --init
 fi
+cd "$PROJECT_ROOT"
 
 ######################################## ENV-setup ########################################################
 
-echo "source $(pwd)/config/env.sh" >> ~/.bashrc
+echo "Настройка переменных окружения..."
+
+# Делаем все скрипты в директории scripts исполняемыми
+echo "Делаем все скрипты в директории scripts исполняемыми..."
+chmod +x "$PROJECT_ROOT/scripts"/*.sh
+
+# Добавляем переменные окружения в .bashrc
+echo "Добавляем переменные окружения в .bashrc, если отсутствуют..."
+if ! grep -q "source $PROJECT_ROOT/config/env.sh" ~/.bashrc; then
+    echo "source $PROJECT_ROOT/config/env.sh" >> ~/.bashrc
+fi
+if ! grep -q "source $PROJECT_ROOT/config/aliases.sh" ~/.bashrc; then
+    echo "source $PROJECT_ROOT/config/aliases.sh" >> ~/.bashrc
+fi
 source ~/.bashrc
 
-
+echo "Установка завершена!"

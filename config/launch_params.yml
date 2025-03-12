@@ -1,17 +1,10 @@
-# Параметры запуска PX4
+# Параметры PX4
 px4:
   sitl: true
   model: gz_x500
   gazebo: true
 
-# Параметры запуска ROS 2
-ros2:
-  bridge: true
-  topics:
-    - /vehicle_status
-    - /sensor_data
-
-# Параметры запуска сервера
+# Параметры сервера
 server:
   port: 3000
   db_path: /data/db.sqlite
