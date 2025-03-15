@@ -8,15 +8,8 @@ class WebSocketManager {
     this.wss = new WebSocketServer({ port });
 
     this.wss.on('connection', (ws) => {
-      console.log('New client connected');
       this.clients.add(ws);
-
-      ws.on('message', (message) => {
-        console.log(`Received: ${message}`);
-      });
-
       ws.on('close', () => {
-        console.log('Client disconnected');
         this.clients.delete(ws);
       });
     });

@@ -1,4 +1,5 @@
-import { DataController } from "./DataController";
+import { DroneController} from "./DroneController";
+import { LogController } from "./LogController";
+import { DataController} from './DataController'
 
-
-export {DataController} 
+export {DroneController,LogController,DataController} 

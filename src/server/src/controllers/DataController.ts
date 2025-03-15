@@ -1,16 +1,23 @@
-import { Request, Response } from 'express';
-import { DataService } from '../services';
-
-class DataController {
-  static async saveData(req: Request, res: Response) {
-    try {
-      const data = req.body;
-      //await DataService.save(data);
-      res.status(200).json({ message: 'Data saved' });
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to save data' });
+export class DataController {
+    static getData() {
+        const timestamp = Date.now();
+        const data = {
+            topic: "/vehicle_odometry",
+            timestamp: timestamp,
+            data: {
+                position: {
+                    x: Math.random() * 10,
+                    y: Math.random() * 10,
+                    z: Math.random() * 10
+                },
+                velocity: {
+                    vx: Math.random(),
+                    vy: Math.random(),
+                    vz: 0.0
+                }
+            }
+        };
+        return data;
     }
-  }
 }
 
-export { DataController };
