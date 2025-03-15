@@ -18,18 +18,3 @@
 * Get access to client: docker exec -it client bash
 * Get access to server: localhost:3000
 
-
-1:56 service postgresql status
-2:23 sudo -i -u postgres
-2:26 psql
-2:32 /l
-2:45 /q
-3:48 ALTER USER postgres WITH PASSWORD 'qwerty';
-4:20 CREATE USER username WITH PASSWORD 'password';
-4:38 ALTER USER username WITH SUPERUSER;
-4:41 \du
-4:54 DROP USER username;
-5:02 \q
-5:06 exit
-5:27 sudo -i -u postgres
-5:27 man psql
