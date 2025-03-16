@@ -1,5 +1,5 @@
 import { DroneLog } from '../models';
-import { WebSocketManager } from '../utils/websocket';
+import { WebSocketManager } from '../utils/foxgloveBridge';
 
 class DroneService {
   constructor(private wsManager: WebSocketManager) {}

@@ -1,5 +1,5 @@
    #!/bin/bash
-   cd $PROJECT_ROOT/src/client/foxglove-studio
+   cd $PROJECT_ROOT/src/client/foxglove-opensource
    yarn web:build:dev
    yarn web:serve &  # Запустить сервер в фоне
 

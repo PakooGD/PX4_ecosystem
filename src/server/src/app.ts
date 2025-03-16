@@ -1,16 +1,39 @@
 import { WebSocketServer } from 'ws';
+import express, { Request, Response } from "express";
 import { FoxgloveServer } from '@foxglove/ws-protocol';
+import { sendData, processUlogFile, processSchemas,getSchemaNameByChannelId } from "./utils";
+import WebSocket from 'ws';
+
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 
 const FoxgloveStudioPort = 8081;
 const BridgePort = 8082;
+const httpPort = 3000;
 
-interface TopicData {
-    name: string;
-    topic: string;
-    timestamp: number;
-    data: Record<string, any>;
-}
+let ulogFilePath = "./14_53_04.ulg";
 
+const app = express();
+
+const storage = multer.diskStorage({
+    destination: (req:any, file:any, cb:any) => {
+        const uploadDir = path.join(__dirname, 'ulog');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true }); 
+        }
+        cb(null, uploadDir); 
+    },
+    filename: (req:any, file:any, cb:any) => {
+        cb(null, file.originalname);
+    },
+});
+
+let uploadedFile:any = null;
+
+const upload = multer({ storage });
+
+app.use(express.json()); 
 const server = new FoxgloveServer({ name: "px4-foxglove-bridge" });
 
 const ws = new WebSocketServer({
@@ -18,58 +41,96 @@ const ws = new WebSocketServer({
     handleProtocols: (protocols) => server.handleProtocols(protocols),
 });
 
-const customChannels = new Map<string, number>();
+app.listen(httpPort, () => {
+    console.log(`Server is running on http://localhost:${httpPort}`);
+});
+
+app.post('/schema', (req: any, res: any) => {
+    const topicSchema = req.body;
+    if (!topicSchema) {
+        return res.status(400).send("Missing required fields: topic, schemaName, schema");
+    }
+    const channelId = processSchemas(server, topicSchema)
+    res.status(200).send({ channelId });
+});
+
+app.post('/ulog', upload.single('ulogFile'), (req: any, res: any) => {
+    if (!req.file) {
+        return res.status(400).send("No file uploaded.");
+    }
+    console.log(req.file)
+
+    uploadedFile = req.file;
+
+    if(readUlog){
+        processUlogFile(server,uploadedFile);
+    }
+
+    res.status(200).send({
+        message: "File uploaded successfully.",
+        fileInfo: {
+            originalName: uploadedFile.originalname,
+            path: uploadedFile.path,
+            size: uploadedFile.size,
+        },
+    });
+});
+
+const readUlog = true;
+
+function sendToPythonBridge(data: { type: string; topic: string }) {
+    if (pythonBridgeWebSocket) {
+        pythonBridgeWebSocket.send(JSON.stringify(data));
+    } else {
+        console.error("Python Bridge WebSocket is not connected.");
+    }
+}
+
+let pythonBridgeWebSocket: WebSocket | null = null;
+
 
 ws.on("connection", (conn, req) => {
-    console.log('🎮 Foxglove Studio connected');
+    console.log(`🎮 Foxglove Studio connected on ws://localhost:${FoxgloveStudioPort}`);
     const name = `${req.socket.remoteAddress}:${req.socket.remotePort}`;
-
-    const wss = new WebSocketServer({ port: BridgePort });
-
-    wss.on('connection', (ws) => {
-        ws.on('message', (message: string) => {
-            const data: TopicData = JSON.parse(message);
-            if (!customChannels.has(data.topic)) {
-                // Генерация схемы на основе структуры данных
-                const generateSchema = (obj: Record<string, any>): any => {
-                    const schema: any = { type: "object", properties: {} };
-                    for (const key in obj) {
-                        if (typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
-                            // Рекурсивно генерируем схему для вложенных объектов
-                            schema.properties[key] = generateSchema(obj[key]);
-                        } else {
-                            // Простые типы данных
-                            schema.properties[key] = { type: typeof obj[key] === 'number' ? 'number' : 'object' };
-                        }
-                    }
-                    return schema;
-                };
-
-                const schema = generateSchema(data.data);
-
-                const channelId = server.addChannel({
-                    topic: data.name,
-                    encoding: "json",
-                    schemaName: data.topic,
-                    schema: JSON.stringify(schema),
-                });
-
-                // Сохраняем канал в нашем хранилище
-                customChannels.set(data.topic, channelId);
-            }
-
-            // Отправка данных в Foxglove Studio
-            const textEncoder = new TextEncoder();
-            server.sendMessage(
-                customChannels.get(data.topic)!,
-                BigInt(data.timestamp),
-                textEncoder.encode(JSON.stringify(data.data)),
-            );
+   
+    if(!readUlog) {
+        const wss = new WebSocketServer({ port: BridgePort }); 
+        wss.on('connection', (ws) => {
+            pythonBridgeWebSocket = ws;
+            ws.on('message', (message: string) => {
+                sendData(server, message);
+            });
+            ws.on('close', () => {
+                console.log("Python Bridge WebSocket disconnected");
+                pythonBridgeWebSocket = null; 
+            });
+            ws.on('error', (error) => {
+                console.error("WebSocket error:", error);
+                pythonBridgeWebSocket = null;  
+            });
         });
+    }
+
+    server.on("subscribe", (chanId) => {
+        const shemaName = getSchemaNameByChannelId(chanId);
+        if (shemaName) {
+            sendToPythonBridge({ type: 'subscribe', topic:shemaName });
+        }
+    });
+
+    server.on("unsubscribe", (chanId) => {
+        const shemaName = getSchemaNameByChannelId(chanId);
+        if (shemaName) {
+            sendToPythonBridge({ type: 'unsubscribe', topic:shemaName });
+        }
+    });
+
+    server.on("error", (err) => {
+        console.error("server error: %o", err);
     });
 
     server.handleConnection(conn, name);
 });
 
-console.log(`WebSocket server is running on ws://localhost:${BridgePort}`);
-console.log(`Foxglove Studio server is running on ws://localhost:${FoxgloveStudioPort}`);
+
+

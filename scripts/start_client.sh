@@ -60,6 +60,7 @@ run_command "bash $PROJECT_ROOT/scripts/start_sensor_listener.sh"
 # run_command "bash $PROJECT_ROOT/scripts/start_translation_node.sh" Проблема с зависимостями
 # run_command "bash $PROJECT_ROOT/scripts/start_foxglove_bridge.sh"
 run_command "bash $PROJECT_ROOT/scripts/start_px4_websocket_bridge.sh"
+run_command "bash $PROJECT_ROOT/scripts/start_log_sender_node.sh"
 
 # Удаляем временный файл после завершения
 trap "rm -f $PASSWORD_FILE" EXIT

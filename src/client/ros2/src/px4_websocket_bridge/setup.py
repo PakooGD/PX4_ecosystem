@@ -20,7 +20,7 @@ setup(
     entry_points={
         'console_scripts': [
             'px4_websocket_node = px4_websocket_bridge.px4_websocket_node:main',
-            'log_sender = log_sender.log_sender_node:main'  
+            'log_sender_node = px4_websocket_bridge.log_sender_node:main'  
         ],
     },
 )

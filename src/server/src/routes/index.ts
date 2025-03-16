@@ -3,7 +3,7 @@ import { DroneController } from '../controllers/DroneController';
 import { LogController } from '../controllers/LogController';
 import { DroneService } from '../services/DroneService';
 import { LogService } from '../services/LogService';
-import { WebSocketManager } from '../utils/websocket';
+import { WebSocketManager } from '../utils/foxgloveBridge';
 
 const router = Router();
 const wsManager = new WebSocketManager(8081);

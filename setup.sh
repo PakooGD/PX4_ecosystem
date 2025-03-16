@@ -143,10 +143,10 @@ cd "$PROJECT_ROOT"
 
 echo "Установка Foxglove Studio..."
 
-if [ ! -d "$CLIENT_DIR/foxglove-studio" ]; then
+if [ ! -d "$CLIENT_DIR/foxglove-opensource" ]; then
     cd "$CLIENT_DIR"
-    git clone https://github.com/dagar/foxglove-studio.git
-    cd "$CLIENT_DIR/foxglove-studio"
+    git clone https://github.com/AD-EYE/foxglove-opensource.git
+    cd "$CLIENT_DIR/foxglove-opensource"
     yarn install
 else
     echo "Foxglove Studio уже установлен."
