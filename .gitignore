@@ -1,6 +1,6 @@
-/src/client/micro_xrce_dds/build
-/src/client/foxglove-studio/node_modules
-/src/client/qgroundcontrol/build
+/src/client/micro_xrce_dds/
+/src/client/foxglove-studio/
+/src/client/qgroundcontrol/
 /src/client/ros2/build
 /src/client/ros2/install
 /src/client/ros2/log

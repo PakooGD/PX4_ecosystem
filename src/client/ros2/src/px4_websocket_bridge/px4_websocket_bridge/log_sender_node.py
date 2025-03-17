@@ -108,6 +108,7 @@ class UlogHandler(Node):
             time.sleep(10)  # Проверка каждые 10 секунд
 
 def main(args=None):
+    
     rclpy.init(args=args)
     ulog_handler = UlogHandler()
 
