@@ -8,7 +8,7 @@
 - Start the server from src/server: `npm start` - will start the server
 
 # Important
-1. Some packages may not be available without VPN in Russia and Belarus: QT5 is nessesary to build QGC, some gitlab dependencies.
+1. Some packages may not be available without VPN in Russia and Belarus: QT6.8.2 is nessesary to build QGC, some gitlab dependencies.
 2. To compile, you will need CMake version 3.21+ and Python 3.
 3. Before installing, make sure you have Qt version 6.8.2 installed. You can download it from the link: https://www.qt.io/download-qt-installer-oss
 * You can download the archive with the sources and compile it manually, but after compilation there may be problems when assembling QGC: https://www.qt.io/offline-installers
