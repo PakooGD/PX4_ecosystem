@@ -1,4 +1,2 @@
-src/client/
-src/server/node_modules
-src/server/src/ulog
+src/
 install.log
