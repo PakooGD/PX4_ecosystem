@@ -10,9 +10,9 @@ export interface TopicData {
     data: Record<string, any>;
 }
 
-export async function processUlogFile(server: FoxgloveServer, file: any) {
+export async function processUlogFile(server: FoxgloveServer, filePath: string) {
     try {
-        const ulog = new ULog(new FileReader(file));
+        const ulog = new ULog(new FileReader(filePath));
         await ulog.open(); 
         for await (const msg of ulog.readMessages()) {
             if (msg.type === MessageType.Data) {

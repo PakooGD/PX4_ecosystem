@@ -12,7 +12,8 @@ const FoxgloveStudioPort = 8081;
 const BridgePort = 8082;
 const httpPort = 3000;
 
-let ulogFilePath = "./14_53_04.ulg";
+const readUlog = false;
+let topicSchema;
 
 const app = express();
 
@@ -45,8 +46,29 @@ app.listen(httpPort, () => {
     console.log(`Server is running on http://localhost:${httpPort}`);
 });
 
+app.post('/mavlog', upload.single('file'), (req: any, res: any) => {
+    if (!req.file) {
+        return res.status(400).send("No file uploaded.");
+    }
+
+    const filePath = req.file.path;
+    const originalName = req.file.originalname;
+
+    if(readUlog){
+        processUlogFile(server,filePath);
+    }
+    // Перемещение файла в постоянную директорию
+    const targetPath = path.join(__dirname, 'log/mav', originalName);
+    fs.rename(filePath, targetPath, (err:any) => {
+        if (err) {
+            return res.status(500).send("Failed to save the file.");
+        }
+        res.status(200).send({ message: "File uploaded successfully.", filePath: targetPath });
+    });
+});
+
 app.post('/schema', (req: any, res: any) => {
-    const topicSchema = req.body;
+    topicSchema = req.body;
     if (!topicSchema) {
         return res.status(400).send("Missing required fields: topic, schemaName, schema");
     }
@@ -54,16 +76,13 @@ app.post('/schema', (req: any, res: any) => {
     res.status(200).send({ channelId });
 });
 
-app.post('/ulog', upload.single('ulogFile'), (req: any, res: any) => {
+app.post('/ulog', upload.single('file'), (req: any, res: any) => {
     if (!req.file) {
         return res.status(400).send("No file uploaded.");
     }
-    console.log(req.file)
-
     uploadedFile = req.file;
-
     if(readUlog){
-        processUlogFile(server,uploadedFile);
+        processUlogFile(server,uploadedFile.path);
     }
 
     res.status(200).send({
@@ -76,7 +95,7 @@ app.post('/ulog', upload.single('ulogFile'), (req: any, res: any) => {
     });
 });
 
-const readUlog = true;
+
 
 function sendToPythonBridge(data: { type: string; topic: string }) {
     if (pythonBridgeWebSocket) {
