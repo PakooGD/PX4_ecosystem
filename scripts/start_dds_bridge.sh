@@ -3,7 +3,9 @@
 # Установка глобальных переменных
 PROJECT_ROOT=$(pwd)
 
-cd $PROJECT_ROOT/src/client/micro_xrce_dds/build
+cd $PROJECT_ROOT/src/client/Micro-XRCE-DDS-Agent/
+mkdir build
+cd build
 cmake ..
 make
 sudo make install

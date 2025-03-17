@@ -1,5 +1,3 @@
 # Параметры PX4
 px4:
-  sitl: true
   model: gz_x500
-  gazebo: true

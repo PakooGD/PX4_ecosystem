@@ -1,11 +1,7 @@
 #!/bin/bash
 
-# Установка переменных
-PROJECT_ROOT=$(pwd)
-QGC_DIR="$PROJECT_ROOT/src/client/qgroundcontrol"
-
 # Переход в директорию QGroundControl
-cd $QGC_DIR
+cd $PROJECT_ROOT/src/client/qgroundcontrol
 
 # Сборка QGroundControl
 echo "Building QGroundControl..."
