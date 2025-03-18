@@ -1,6 +1,6 @@
 # Important Info and Dependencies
 1. Project was succesfully built on Ununtu 22.04, it (may)will not work properly with Win/Mac and other Linux versions coz it uses GnomeTerminal for launch and linux-related commands.
-2. Some packages may not be available without VPN in Russia and Belarus: with QT6.8.2 which is nessesary to build QGC, with some gitlab dependencies.
+2. Some packages are unavailable without VPN in Russia and Belarus: QT6.8.2 which is nessesary to build QGC, some package's dependencies from gitlab.
 3. To compile, you will need CMake version 3.21+ and Python 3.
 4. Before installing, make sure you have Qt version 6.8.2 installed. You can download it from the link: https://www.qt.io/download-qt-installer-oss
 * You can download the archive with the sources and compile it manually, but after compilation there may be problems when assembling QGC: https://www.qt.io/offline-installers
