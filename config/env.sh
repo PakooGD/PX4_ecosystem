@@ -1,5 +1,5 @@
 # Переменные окружения
-export PROJECT_ROOT=~/PX4_ecosystem
+export PROJECT_ROOT=~/Projects/PX4_ecosystem
 export CLIENT_DIR="$PROJECT_ROOT/src/client"
 export SERVER_DIR="$PROJECT_ROOT/src/server"
 export QT_PATH=/usr/local/Qt-6.8.2/bin:$PATH
