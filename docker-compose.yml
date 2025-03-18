@@ -1,39 +1,18 @@
 version: '3.8'
 
 services:
-  client:
-    build:
-      context: .
-      dockerfile: Dockerfile.client
-    container_name: client
-    volumes:
-      - ./src/client:/workspace/src/client  # Монтируем локальную директорию клиента
-      - ./scripts:/workspace/scripts        # Монтируем локальные скрипты
-      - ./config:/workspace/config          # Монтируем локальные конфиги
-    tty: true
-    stdin_open: true
-    networks:
-      - drone_network
-
   server:
-    build:
-      context: .
-      dockerfile: Dockerfile.server
+    build: .
     container_name: server
-    ports:
-      - "3000:3000"
+    working_dir: /workspace
     volumes:
-      - ./src/server:/workspace/src/server  # Монтируем локальную директорию сервера
-      - ./scripts:/workspace/scripts        # Монтируем локальные скрипты
-      - ./config:/workspace/config          # Монтируем локальные конфиги
-    networks:
-      - drone_network
+      - .:/workspace
+    command: bash scripts/start_server.sh
 
-networks:
-  drone_network:
-    driver: bridge
-
-environment:
-  - DISPLAY=${DISPLAY}
-volumes:
-  - /tmp/.X11-unix:/tmp/.X11-unix
+  client:
+    build: .
+    container_name: client
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: bash scripts/start_client.sh
