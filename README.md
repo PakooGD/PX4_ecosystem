@@ -4,7 +4,7 @@
 3. To compile, you will need CMake version 3.21+ and Python 3.
 4. Before installing, make sure you have Qt version 6.8.2 installed. You can download it from the link: https://www.qt.io/download-qt-installer-oss
 * You can download the archive with the sources and compile it manually, but after compilation there may be problems when assembling QGC: https://www.qt.io/offline-installers
-5. You may at least 10gb of free disk space.
+5. You must have at least 10 GB of free disk space.
 
 # Installation
 1. Clone the repository: `git clone https://github.com/PakooGD/PX4_ecosystem.git`
