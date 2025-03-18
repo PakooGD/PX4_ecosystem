@@ -8,7 +8,7 @@
 
 # Installation
 1. Clone the repository: `git clone https://github.com/PakooGD/PX4_ecosystem.git`
-2. Open congig/ and in the env.sh set ur directory. Actually it should work without this step, but it is better to do it.
+2. Open config/ and in the env.sh set ur directory. Actually it should work without this step, but it is better to do it.
 2. Go to the root directory and run the installation script, which will download missing dependencies and sources: `chmod +x setup.sh && ./setup.sh`
 * It may take some time (about 20 minutes) depending on your system configuration
 
