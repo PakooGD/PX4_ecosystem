@@ -4,13 +4,23 @@
 
 # Функция вывода процесса установки
 echo_setup_step() {
-    local message=$1
-    local is_header="${2:-false}" 
+    local is_header="${1:-false}"
+    local message=$2
     local color="${3:-}"
+ 
+    if [[ "$1" != "true" && "$1" != "false" ]]; then
+        local is_header="false"  # По умолчанию is_header=false
+        local message="$1"       # Первый параметр — это сообщение
+        local color="${2:-}"     # Второй параметр — это цвет (опционально)
+    else
+        local is_header="$1"     # Первый параметр — это is_header
+        local message="$2"       # Второй параметр — это сообщение
+        local color="${3:-}"     # Третий параметр — это цвет (опционально)
+    fi
 
     if [ "$is_header" = false ]; then
         local default_color="\\033[37m"
-        echo -e "${color:-$default_color}----- $message ------------------------------------\\033[0m"
+        echo -e "----- ${color:-$default_color}$message\\033[0m ------------------------------------"
         echo " "
     else
         local default_color="\\033[33m"
@@ -19,6 +29,17 @@ echo_setup_step() {
         echo " "
     fi
 }
+
+create_directory() {
+    local dir_path=$1
+    if [ -d "$dir_path" ]; then
+        echo_setup_step "Директория $dir_path уже существует." "\\033[31m"
+    else
+        mkdir -p "$dir_path"
+        echo_setup_step "Директория $dir_path создана..."
+    fi
+}
+
 # Функция для проверки и установки пакетов
 install_package() {
     local package_name=$1
@@ -28,7 +49,7 @@ install_package() {
         echo_setup_step "Установка $package_name..."
         eval "$install_command"
     else
-        echo_setup_step "$package_name уже установлен."
+        echo_setup_step "$package_name уже установлен." "\\033[32m" 
     fi
 }
 
@@ -39,7 +60,7 @@ install_apt_package() {
     if ! dpkg -l "$package_name" | grep -q "^ii"; then
         sudo apt-get install --no-install-recommends -y $package_name 
     else
-        echo_setup_step "$package_name уже установлен."
+        echo_setup_step "$package_name уже установлен." "\\033[32m" 
     fi
 }
 
@@ -52,7 +73,7 @@ clone_repo() {
 
     # Создаем целевую папку, если её нет
     mkdir -p "$target_dir"
-    cd "$target_dir" || { echo -e "\u001b[30mОшибка: не удалось перейти в $target_dir\u001b[0m"; }
+    cd "$target_dir" || { echo -e "\u001b[30mОшибка: не удалось перейти в $target_dir\u001b[0m"; return 1; }
 
     if [ -d "$repo_name" ] && [ -d "$repo_name/.git" ]; then
         echo -e "\u001b[35m$repo_name уже клонирован и является Git-репозиторием.\u001b[0m"
@@ -64,29 +85,57 @@ clone_repo() {
             default_branch="main"  # Если не удалось определить, используем "main"
         fi
 
+        # Сохраняем текущий хэш коммита
+        local current_commit=$(git rev-parse HEAD)
+
+        # Фетчим изменения
         echo -e "\u001b[35mОбновление $repo_name (ветка $default_branch)...\u001b[0m"
         git fetch --all --prune  # Обновляем информацию о всех ветках и удаляем устаревшие
-        git reset --hard "origin/$default_branch"  # Сбрасываем изменения и переходим на последний коммит
 
-        # Обновляем подмодули, если нужно
-        if [ "$update_submodules" = true ]; then
-            echo -e "\u001b[35mОбновление подмодулей...\u001b[0m"
-            git submodule update --init --recursive
+        # Сбрасываем изменения и переходим на последний коммит
+        git reset --hard "origin/$default_branch"
+
+        # Получаем новый хэш коммита
+        local new_commit=$(git rev-parse HEAD)
+
+        # Проверяем, были ли изменения
+        if [ "$current_commit" != "$new_commit" ]; then
+            echo -e "\u001b[32mОбнаружены изменения в репозитории $repo_name.\u001b[0m"
+            # Обновляем подмодули, если нужно
+            if [ "$update_submodules" = true ]; then
+                echo -e "\u001b[35mОбновление подмодулей...\u001b[0m"
+                git submodule update --init --recursive
+            fi
+
+            # Возвращаем true, чтобы указать, что были изменения
+            return 0
+        else
+            echo -e "\u001b[36mИзменений в репозитории $repo_name не обнаружено.\u001b[0m"
+            # Возвращаем false, чтобы указать, что изменений не было
+            return 1
         fi
 
         cd ..
     else
-        echo "\u001b[35mКлонирование $repo_name...\u001b[0m"
-        git clone "$repo_url" "$repo_name" --recursive -j8 || { echo -e "\u001b[30mОшибка: не удалось клонировать $repo_name\u001b[0m"; }
+        echo -e "\u001b[35mКлонирование $repo_name...\u001b[0m"
+        git clone "$repo_url" "$repo_name" --recursive -j8 || { echo -e "\u001b[30mОшибка: не удалось клонировать $repo_name\u001b[0m"; return 1; }
+        # Возвращаем true, так как репозиторий был клонирован впервые
+        return 0
     fi
 }
 
+######################################## Проверка свободного места ########################################################
 
+MIN_DISK_SPACE=10485760  # 10 ГБ в килобайтах
+if [ $(df / | awk 'NR==2 {print $4}') -lt $MIN_DISK_SPACE ]; then
+    echo_setup_step "Ошибка: недостаточно свободного места на диске." "\\033[31m"
+    exit 1
+fi
 
 ######################################## Настройка переменных окружения ########################################################
 
 echo " "
-echo_setup_step "Настройка переменных окружения" true
+echo_setup_step true "Настройка переменных окружения" 
 
 PROJECT_ROOT=$(pwd)
 
@@ -101,11 +150,11 @@ echo_setup_step "Делаем все скрипты в директории scri
 chmod +x "$PROJECT_ROOT/scripts"/*.sh
 
 # Добавление пользователя в группу dialout
+echo_setup_step "Добавление пользователя $USER в группу dialout..."
 if ! groups $USER | grep -q "\bdialout\b"; then
-    echo_setup_step "Добавление пользователя $USER в группу dialout..."
     sudo usermod -a -G dialout $USER
 else
-    echo_setup_step "Пользователь $USER уже в группе dialout."
+    echo_setup_step "Пользователь $USER уже в группе dialout." "\\033[32m" 
 fi
 
 # Добавляем переменные окружения в .bashrc
@@ -124,14 +173,14 @@ echo "Серверная директория: $SERVER_DIR"
 
 ######################################## Установка зависимостей ########################################################
 
-echo_setup_step "Установка зависимостей и базовая настройка..." true
+echo_setup_step true "Обновление системы и пакетов..." 
 
 # Обновление списка пакетов
-echo_setup_step "Получение обновлений пакетов..."
 sudo apt-get update
+sudo apt-get upgrade -y
 
-echo " "
-echo_setup_step "Установка необходимых пакетов..."
+echo_setup_step true "Установка дополнительных пакетов"
+
 # Установка Python 3 и необходимых зависимостей
 install_apt_package "python3"              # Основной интерпретатор Python 3
 install_apt_package "python3-pip"          # Менеджер пакетов для Python
@@ -209,17 +258,21 @@ install_package "pip" "pip install --user -U empy==3.3.4 pyros-genmsg setuptools
 # Установка Rust и Cargo
 install_package "rustup" "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source $HOME/.cargo/env"
 
+######################################## Удаление ########################################################
+
+echo_setup_step true "Удаление потенциально конфликтующих программ и пакетов"
+
 # Удаление modemmanager (может конфликтовать с ROS)
 if dpkg -l | grep -q "^ii  modemmanager "; then
     sudo apt-get remove -y modemmanager
 else
-    echo_setup_step "modemmanager уже удалён."
+    echo_setup_step "modemmanager уже удалён." "\\033[32m" 
 fi
 
 ######################################## Установка Qt 6.8.2 ########################################################
 
 
-# echo_setup_step "Проверка и установка Qt 6.8.2..." true
+# echo_setup_step true "Проверка и установка Qt 6.8.2..."
 
 # # Целевая версия Qt
 # TARGET_QT_VERSION="6.8.2"
@@ -284,25 +337,16 @@ fi
 #     echo_setup_step "Qt уже добавлен в PATH."
 # fi
 
-######################################## Очистка системы ########################################################
-
-echo_setup_step "Очистка системы..." true
-
-sudo apt-get clean
-sudo apt-get autoremove -y
-sudo apt-get autoclean
-sudo rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
 ######################################## Создаем локали для английского языка ########################################################
 
-echo_setup_step "Настраиваем локали для английского языка с кодировкой UTF-8..." true
+echo_setup_step true "Настраиваем локали для английского языка с кодировкой UTF-8..." 
 
 # Проверка и генерация локалей, если они ещё не сгенерированы
 if ! locale -a | grep -q "en_US.utf8"; then
-    echo_setup_step "Локаль en_US.UTF-8 не найдена. Генерация локалей..."
+    echo_setup_step "Локаль en_US.UTF-8 не найдена. Генерация локалей..." 
     sudo locale-gen en_US en_US.UTF-8
 else
-    echo_setup_step "Локаль en_US.UTF-8 уже сгенерирована."
+    echo_setup_step "Локаль en_US.UTF-8 уже сгенерирована." "\\033[32m" 
 fi
 
 # Проверка и обновление глобальных настроек локали, если они ещё не настроены
@@ -310,7 +354,7 @@ if ! grep -q "LANG=en_US.UTF-8" /etc/default/locale || ! grep -q "LC_ALL=en_US.U
     echo_setup_step "Глобальные настройки локали не найдены. Настройка локали..."
     sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
 else
-    echo_setup_step "Глобальные настройки локали уже настроены."
+    echo_setup_step "Глобальные настройки локали уже настроены." "\\033[32m" 
 fi
 
 # Проверка и установка локали для текущей сессии, если она ещё не установлена
@@ -318,22 +362,38 @@ if [ "$LANG" != "en_US.UTF-8" ]; then
     echo_setup_step "Локаль для текущей сессии не настроена. Установка локали..."
     export LANG=en_US.UTF-8
 else
-    echo_setup_step "Локаль для текущей сессии уже настроена."
+    echo_setup_step "Локаль для текущей сессии уже настроена." "\\033[32m" 
 fi
 
 ######################################## Создаем директорию ########################################################
 
-echo_setup_step "Создаем директорию..." true
+echo_setup_step true "Создаем директорию..." 
 
-cd $PROJECT_ROOT
-mkdir $PROJECT_ROOT/src/client
-mkdir $PROJECT_ROOT/src/server
+create_directory "$PROJECT_ROOT/src/client"
+create_directory "$PROJECT_ROOT/src/server"
+
+######################################## SERVER ########################################################
+
+echo_setup_step true "Установка зависимостей сервера..." 
+
+clone_repo "https://github.com/PakooGD/dsk_server.git" "$PROJECT_ROOT/src" "server"
+cd "$SERVER_DIR"
+# Установка серверных зависимостей
+if [ -d "$SERVER_DIR/node_modules" ]; then
+    echo " "
+    echo_setup_step "Зависимости сервера уже установлены."
+else
+    echo_setup_step "Установка зависимостей сервера..."
+    npm install
+fi
+
+cd "$PROJECT_ROOT"
 
 ######################################## ROS2 Humble ########################################################
 
 # Установка ROS 2 Humble
 
-echo_setup_step "Установка ROS 2 Humble..." true
+echo_setup_step true "Установка ROS 2 Humble..." 
 
 if [ ! -f /opt/ros/humble/setup.bash ]; then
     sudo add-apt-repository universe
@@ -354,140 +414,137 @@ clone_repo "https://github.com/PX4/px4_ros_com.git" "$CLIENT_DIR/ros2/src"
 clone_repo "https://github.com/PakooGD/dsk_controller.git" "$CLIENT_DIR/ros2/src" "px4_controller"
 # clone_repo "https://github.com/foxglove/ros-foxglove-bridge.git" "$CLIENT_DIR/ros2/src"
 
-echo " "
-echo_setup_step "Сборка пакетов ROS2..."
-cd "$CLIENT_DIR/ros2" 
-source /opt/ros/humble/setup.bash 
-colcon build
-source install/local_setup.bash 
+# Проверяем, были ли изменения в любом из репозиториев
+if [ $? -eq 0 ]; then
+    echo " "
+    echo_setup_step "Сборка пакетов ROS2..."
+    cd "$CLIENT_DIR/ros2" 
+    source /opt/ros/humble/setup.bash 
+    colcon build
+    source install/local_setup.bash 
+fi
 
 cd "$PROJECT_ROOT"
 
 ######################################## PX4-Autopilot ########################################################
 
-echo_setup_step "Установка PX4-Autopilot..." true
+echo_setup_step true "Установка PX4-Autopilot..." 
 
 clone_repo "https://github.com/PakooGD/PX4-Autopilot.git" "$CLIENT_DIR"
-cd "$CLIENT_DIR/PX4-Autopilot"
 
-bash ./Tools/setup/ubuntu.sh
+if [ $? -eq 0 ]; then
+    cd "$CLIENT_DIR/PX4-Autopilot"
+    if command -v gz &> /dev/null; then
+        echo " "
+        echo_setup_step "Gazebo Harmonic уже установлен."
+    else
+        echo " "
+        echo_setup_step "Установка Gazebo Harmonic..."
 
-# Установка  GazeboHarmonic
-if command -v gz &> /dev/null; then
-    echo " "
-    echo_setup_step "Gazebo Harmonic уже установлен."
-else
-    echo " "
-    echo_setup_step "Установка Gazebo Harmonic..."
-
-    sudo curl https://packages.osrfoundation.org/gazebo.gpg --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
-    sudo apt-get update
-    sudo apt-get install gz-harmonic
-fi
-
+        sudo curl https://packages.osrfoundation.org/gazebo.gpg --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+        sudo apt-get update
+        sudo apt-get install gz-harmonic
+    fi
+    bash ./Tools/setup/ubuntu.sh
     echo_setup_step "Сборка PX4-Autopilot..."
     make px4_sitl
+fi
 
 cd "$PROJECT_ROOT"
 
 ######################################## Micro XRCE-DDS Agent ########################################################
 
-echo_setup_step "Установка Micro XRCE-DDS Agent..." true
+echo_setup_step true "Установка Micro XRCE-DDS Agent..." 
 
 clone_repo "https://github.com/eProsima/Micro-XRCE-DDS-Agent.git" "$CLIENT_DIR"
 
-echo " "
-echo_setup_step "Сборка Micro XRCE-DDS Agent..."
-
-cd $CLIENT_DIR/Micro-XRCE-DDS-Agent/
-mkdir build
-cd build
-cmake ..
-make
-sudo make install
-sudo ldconfig /usr/local/lib/
+if [ $? -eq 0 ]; then
+    cd $CLIENT_DIR/Micro-XRCE-DDS-Agent/
+    echo " "
+    echo_setup_step "Сборка Micro XRCE-DDS Agent..."
+    create_directory "$CLIENT_DIR/Micro-XRCE-DDS-Agent/build"
+    cd build 
+    cmake ..
+    make
+    sudo make install
+    sudo ldconfig /usr/local/lib/
+fi
 
 cd "$PROJECT_ROOT"
 
 ######################################## QGroundControl ########################################################
 
-echo_setup_step "Установка QGroundControl..." true
+echo_setup_step true "Установка QGroundControl..." 
 
 clone_repo "https://github.com/PakooGD/qgroundcontrol.git" "$CLIENT_DIR"
 
-cd "$CLIENT_DIR/qgroundcontrol"
-sudo bash ./tools/setup/install-dependencies-debian.sh
-
-# Сборка QGroundControl
-echo " "
-echo_setup_step "Сборка QGroundControl..."
-
-mkdir -p build
-~/Qt/6.8.2/gcc_64/bin/qt-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug # Qt-6.8.2 is required! Instal it through Qt obline installer: https://www.qt.io/offline-installers 
-cmake --build build --config Debug
+if [ $? -eq 0 ]; then
+    cd "$CLIENT_DIR/qgroundcontrol"
+    sudo bash ./tools/setup/install-dependencies-debian.sh
+        # Сборка QGroundControl
+    echo " "
+    echo_setup_step "Сборка QGroundControl..."
+    create_directory "$CLIENT_DIR/qgroundcontrol/build"
+    cd build
+    ~/Qt/6.8.2/gcc_64/bin/qt-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug # Qt-6.8.2 is required! Instal it through Qt obline installer: https://www.qt.io/offline-installers 
+    cmake --build build --config Debug
+fi
 
 cd "$PROJECT_ROOT"
 
 ######################################## FOXGLOVE ########################################################
 
-echo_setup_step "Установка Foxglove Studio..." true
+echo_setup_step true "Установка Foxglove Studio..."
 
 clone_repo "https://github.com/PakooGD/foxglove-opensource.git" "$CLIENT_DIR" "foxglove"
-cd "$CLIENT_DIR/foxglove"
-if [ -d "$CLIENT_DIR/foxglove/node_modules" ]; then
-    echo " "
-    echo_setup_step "Зависимости Foxglove Studio уже установлены."
-else
-    echo " "
-    echo_setup_step "Установка зависимостей Foxglove Studio..."
-    yarn install
+if [ $? -eq 0 ]; then
+    cd "$CLIENT_DIR/foxglove"
+    if [ -d "$CLIENT_DIR/foxglove/node_modules" ]; then
+        echo " "
+        echo_setup_step "Зависимости Foxglove Studio уже установлены."
+    else
+        echo " "
+        echo_setup_step "Установка зависимостей Foxglove Studio..."
+        yarn install
+    fi
+    echo_setup_step "Сборка Foxglove Studio..."
+    yarn web:build:dev
 fi
 
-echo_setup_step "Сборка Foxglove Studio..."
-yarn web:build:dev
-
 cd "$PROJECT_ROOT"
-
 
 ######################################## Rerun ########################################################
 
-echo_setup_step "Установка Rerun..." true
+echo_setup_step true "Установка Rerun..." 
 
 clone_repo "https://github.com/PakooGD/rerun.git" "$CLIENT_DIR" "rerun"
 
-cd "$CLIENT_DIR/rerun"
-
-if command -v rerun &> /dev/null; then
-    echo " "
-    echo_setup_step "Rerun уже установлен."
-else
-    echo " "
-    echo_setup_step "Установка Rerun в систему..."
-    cargo install --path .
-    pip install rerun-sdk
-fi
-
-echo_setup_step "Сборка Rerun..."
-cargo build --release
-
-cd "$PROJECT_ROOT"
-
-######################################## SERVER ########################################################
-
-echo_setup_step "Установка зависимостей сервера..." true
-
-clone_repo "https://github.com/PakooGD/dsk_server.git" "$PROJECT_ROOT/src" "server"
-cd "$SERVER_DIR"
-# Установка серверных зависимостей
-if [ -d "$SERVER_DIR/node_modules" ]; then
-    echo " "
-    echo_setup_step "Зависимости сервера уже установлены."
-else
-    echo_setup_step "Установка зависимостей сервера..."
-    npm install
+if [ $? -eq 0 ]; then
+    if command -v rerun &> /dev/null; then
+        echo " "
+        echo_setup_step "Rerun уже установлен."
+    else
+        echo " "
+        echo_setup_step "Установка Rerun в систему..."
+        cargo install --path .
+        pip install rerun-sdk
+    fi
+    cd "$CLIENT_DIR/rerun"
+    echo_setup_step "Сборка Rerun..."
+    cargo build --release
 fi
 
 cd "$PROJECT_ROOT"
 
-echo_setup_step "Установка завершение" true "\\033[32m"
+######################################## Очистка системы ########################################################
+
+echo_setup_step true "Очистка системы..." 
+
+sudo apt-get clean
+sudo apt-get autoremove -y
+sudo apt-get autoclean
+sudo rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+ccache -C
+
+echo_setup_step true "Установка завершение" "\\033[32m" 
