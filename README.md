@@ -19,6 +19,5 @@
 # Docker (Not Working yet)
 1. Build: docker-compose build
 2. Launch conatiners: docker-compose up
-* Get access to client: docker exec -it client bash
-* Get access to server: localhost:3000
+
 
