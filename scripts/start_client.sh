@@ -138,7 +138,7 @@ source install/local_setup.bash || handle_error "Не удалось загру�
 
 # Запуск ROS2-скриптов в новых вкладках терминала
 run_command "bash $PROJECT_ROOT/scripts/start_sensor_listener.sh" || handle_error "Не удалось запустить start_sensor_listener.sh"
-run_command "bash $PROJECT_ROOT/scripts/start_topic_bridge.sh" || handle_error "Не удалось запустить start_topic_bridge.sh"
+run_command "bash $PROJECT_ROOT/scripts/start_topic_bridge.sh" true || handle_error "Не удалось запустить start_topic_bridge.sh"
 run_command "bash $PROJECT_ROOT/scripts/start_log_sender.sh" || handle_error "Не удалось запустить start_log_sender.sh"
 
 echo "Все компоненты запущены."
@@ -148,3 +148,6 @@ echo "Нажмите Ctrl+C для завершения..."
 while true; do
     sleep 1
 done
+
+
+
