@@ -393,6 +393,23 @@ fi
 
 cd "$PROJECT_ROOT"
 
+######################################## React интерфейс для работы с сервером ########################################################
+
+echo_setup_step true "Установка React интерфейса..." 
+
+clone_repo "https://github.com/PakooGD/drone-dashboard.git" "$CLIENT_DIR" "DroneDashboard"
+cd "$CLIENT_DIR/DroneDashboard"
+# Установка серверных зависимостей
+if [ -d "$CLIENT_DIR/DroneDashboard/node_modules" ]; then
+    echo " "
+    echo_setup_step "Зависимости React интерфейса уже установлены."
+else
+    echo_setup_step "Установка зависимостей React интерфейса..."
+    npm install
+fi
+
+cd "$PROJECT_ROOT"
+
 ######################################## ROS2 Humble ########################################################
 
 # Установка ROS 2 Humble

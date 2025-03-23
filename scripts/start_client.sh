@@ -128,6 +128,7 @@ run_command "bash $PROJECT_ROOT/scripts/start_foxglove.sh" true|| handle_error "
 run_with_sudo "bash $PROJECT_ROOT/scripts/start_dds_bridge.sh" || handle_error "Не удалось запустить start_dds_bridge.sh"
 run_command "bash $PROJECT_ROOT/scripts/start_px4.sh" true || handle_error "Не удалось запустить start_px4.sh"
 run_command "bash $PROJECT_ROOT/scripts/start_qgc.sh" || handle_error "Не удалось запустить start_qgc.sh"
+run_command "bash $PROJECT_ROOT/scripts/start_react.sh" || handle_error "Не удалось запустить start_react.sh"
 
 # Build ROS2 modules
 echo "Building ROS2..."
@@ -139,7 +140,6 @@ source install/local_setup.bash || handle_error "Не удалось загру�
 # Запуск ROS2-скриптов в новых вкладках терминала
 run_command "bash $PROJECT_ROOT/scripts/start_sensor_listener.sh" || handle_error "Не удалось запустить start_sensor_listener.sh"
 run_command "bash $PROJECT_ROOT/scripts/start_topic_bridge.sh" true || handle_error "Не удалось запустить start_topic_bridge.sh"
-run_command "bash $PROJECT_ROOT/scripts/start_log_sender.sh" || handle_error "Не удалось запустить start_log_sender.sh"
 
 echo "Все компоненты запущены."
 
