@@ -256,7 +256,7 @@ install_package "yq" "sudo snap install yq"
 install_package "pip" "pip install --user -U empy==3.3.4 pyros-genmsg setuptools"
 
 # Установка pycryptodome - для работы с шифрованием
-install_package "pip" "pip install pycryptodome"
+install_package "pycryptodome" "pip install pycryptodome"
 
 
 # Установка Rust и Cargo
