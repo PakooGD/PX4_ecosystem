@@ -397,10 +397,10 @@ cd "$PROJECT_ROOT"
 
 echo_setup_step true "Установка React интерфейса..." 
 
-clone_repo "https://github.com/PakooGD/drone-dashboard.git" "$CLIENT_DIR" "DroneDashboard"
-cd "$CLIENT_DIR/DroneDashboard"
+clone_repo "https://github.com/PakooGD/drone-dashboard.git" "$CLIENT_DIR" "drone_dashboard"
+cd "$CLIENT_DIR/drone_dashboard"
 # Установка серверных зависимостей
-if [ -d "$CLIENT_DIR/DroneDashboard/node_modules" ]; then
+if [ -d "$CLIENT_DIR/drone_dashboard/node_modules" ]; then
     echo " "
     echo_setup_step "Зависимости React интерфейса уже установлены."
 else
@@ -451,7 +451,7 @@ cd "$PROJECT_ROOT"
 
 echo_setup_step true "Установка PX4-Autopilot..." 
 
-clone_repo "https://github.com/PakooGD/PX4-Autopilot.git" "$CLIENT_DIR"
+clone_repo "https://github.com/PakooGD/PX4-Autopilot.git" "$CLIENT_DIR" "PX4-Autopilot"
 
 if [ $? -eq 0 ]; then
     cd "$CLIENT_DIR/PX4-Autopilot"
