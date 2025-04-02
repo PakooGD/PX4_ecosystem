@@ -1,3 +1,5 @@
-src/
+src/client
+src/server/temp
+src/server/node_modules
 install.log
 todo.md
