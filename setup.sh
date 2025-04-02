@@ -181,6 +181,19 @@ sudo apt-get upgrade -y
 
 echo_setup_step true "Установка дополнительных пакетов"
 
+# # Установка CMake версии 3.31.6
+# install_package "cmake" "sudo apt-get install -y build-essential libssl-dev && wget -O cmake-3.31.6.tar.gz https://github.com/Kitware/CMake/releases/download/v3.31.6/cmake-3.31.6.tar.gz && tar -xzvf cmake-3.31.6.tar.gz && (cd cmake-3.31.6 && ./bootstrap && make -j$(nproc) && sudo make -C cmake-3.31.6 install)"
+# Установка Node.js через nvm
+install_package "node" "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && \. \"$HOME/.nvm/nvm.sh\" && nvm install 22 && corepack enable"
+# Установка yq (утилита для работы с YAML)
+install_package "yq" "sudo snap install yq"
+# Установка empy
+install_package "pip" "pip install --user -U empy==3.3.4 pyros-genmsg setuptools"
+# Установка pycryptodome - для работы с шифрованием
+install_package "pycryptodome" "pip install pycryptodome"
+# Установка Rust и Cargo
+install_package "rustup" "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source $HOME/.cargo/env"
+
 # Установка Python 3 и необходимых зависимостей
 install_apt_package "python3"              # Основной интерпретатор Python 3
 install_apt_package "python3-pip"          # Менеджер пакетов для Python
@@ -197,7 +210,6 @@ install_apt_package "g++"                  # Компилятор C++
 install_apt_package "gdb"                  # Отладчик GNU
 install_apt_package "gawk"                 # Утилита для обработки текста
 install_apt_package "make"                 # Утилита для управления сборкой
-install_apt_package "cmake"                # Система управления сборкой (уже установлена выше)
 install_apt_package "ninja-build"          # Альтернативная система сборки
 install_apt_package "libtool"              # Утилита для управления библиотеками
 install_apt_package "libtool-bin"          # Утилиты для работы с libtool
@@ -243,24 +255,6 @@ install_apt_package "gstreamer1.0-plugins-bad"  # Плагины GStreamer (не
 install_apt_package "gstreamer1.0-libav"        # Плагины GStreamer для работы с libav
 install_apt_package "gstreamer1.0-gl"           # Плагины GStreamer для работы с OpenGL
 
-# Установка CMake версии 3.21+
-install_package "cmake" "wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null && sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main' && sudo apt-get update && sudo apt-get install -y cmake"
-
-# Установка Node.js через nvm
-install_package "node" "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && \. \"$HOME/.nvm/nvm.sh\" && nvm install 22 && corepack enable"
-
-# Установка yq (утилита для работы с YAML)
-install_package "yq" "sudo snap install yq"
-
-# Установка empy
-install_package "pip" "pip install --user -U empy==3.3.4 pyros-genmsg setuptools"
-
-# Установка pycryptodome - для работы с шифрованием
-install_package "pycryptodome" "pip install pycryptodome"
-
-
-# Установка Rust и Cargo
-install_package "rustup" "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source $HOME/.cargo/env"
 
 ######################################## Удаление ########################################################
 
@@ -374,24 +368,6 @@ fi
 echo_setup_step true "Создаем директорию..." 
 
 create_directory "$PROJECT_ROOT/src/client"
-create_directory "$PROJECT_ROOT/src/server"
-
-######################################## SERVER ########################################################
-
-echo_setup_step true "Установка зависимостей сервера..." 
-
-clone_repo "https://github.com/PakooGD/dsk_server.git" "$PROJECT_ROOT/src" "server"
-cd "$SERVER_DIR"
-# Установка серверных зависимостей
-if [ -d "$SERVER_DIR/node_modules" ]; then
-    echo " "
-    echo_setup_step "Зависимости сервера уже установлены."
-else
-    echo_setup_step "Установка зависимостей сервера..."
-    npm install
-fi
-
-cd "$PROJECT_ROOT"
 
 ######################################## React интерфейс для работы с сервером ########################################################
 
@@ -503,7 +479,7 @@ clone_repo "https://github.com/PakooGD/qgroundcontrol.git" "$CLIENT_DIR"
 if [ $? -eq 0 ]; then
     cd "$CLIENT_DIR/qgroundcontrol"
     sudo bash ./tools/setup/install-dependencies-debian.sh
-        # Сборка QGroundControl
+    # Сборка QGroundControl
     echo " "
     echo_setup_step "Сборка QGroundControl..."
     create_directory "$CLIENT_DIR/qgroundcontrol/build"
