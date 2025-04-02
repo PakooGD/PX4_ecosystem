@@ -255,6 +255,27 @@ install_apt_package "gstreamer1.0-plugins-bad"  # Плагины GStreamer (не
 install_apt_package "gstreamer1.0-libav"        # Плагины GStreamer для работы с libav
 install_apt_package "gstreamer1.0-gl"           # Плагины GStreamer для работы с OpenGL
 
+<<<<<<< HEAD
+=======
+# Установка CMake версии 3.21+
+install_package "cmake" "wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null && sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main' && sudo apt-get update && sudo apt-get install -y cmake"
+
+# Установка Node.js через nvm
+install_package "node" "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && \. \"$HOME/.nvm/nvm.sh\" && nvm install 22 && corepack enable"
+
+# Установка yq (утилита для работы с YAML)
+install_package "yq" "sudo snap install yq"
+
+# Установка empy
+install_package "pip" "pip install --user -U empy==3.3.4 pyros-genmsg setuptools"
+
+# Установка pycryptodome - для работы с шифрованием
+install_package "pycryptodome" "pip install pycryptodome"
+
+
+# Установка Rust и Cargo
+install_package "rustup" "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source $HOME/.cargo/env"
+>>>>>>> origin/main
 
 ######################################## Удаление ########################################################
 

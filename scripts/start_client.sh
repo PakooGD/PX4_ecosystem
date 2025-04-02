@@ -127,8 +127,8 @@ fi
 run_command "bash $PROJECT_ROOT/scripts/start_foxglove.sh" true|| handle_error "Не удалось запустить start_foxglove.sh"
 run_with_sudo "bash $PROJECT_ROOT/scripts/start_dds_bridge.sh" || handle_error "Не удалось запустить start_dds_bridge.sh"
 run_command "bash $PROJECT_ROOT/scripts/start_px4.sh" true || handle_error "Не удалось запустить start_px4.sh"
-run_command "bash $PROJECT_ROOT/scripts/start_qgc.sh" true || handle_error "Не удалось запустить start_qgc.sh"
-# run_command "bash $PROJECT_ROOT/scripts/start_react.sh" || handle_error "Не удалось запустить start_react.sh"
+run_command "bash $PROJECT_ROOT/scripts/start_qgc.sh" || handle_error "Не удалось запустить start_qgc.sh"
+run_command "bash $PROJECT_ROOT/scripts/start_react.sh" || handle_error "Не удалось запустить start_react.sh"
 
 # Build ROS2 modules
 echo "Building ROS2..."
