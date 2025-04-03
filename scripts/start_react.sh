@@ -1,4 +1,4 @@
 #!/bin/bash
 
-cd $CLIENT_DIR/drone-dashboard
+cd $CLIENT_DIR/drone_dashboard
 npm start
