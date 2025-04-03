@@ -106,7 +106,9 @@ droneServer.on('connection', (ws, req) => {
         eventEmitter.emit(EventTypes.SIGNIN, droneId);
         droneClients.set(droneId, ws);
 
+        ws.binaryType = 'arraybuffer'
         ws.on('message', (message: string) => {
+            
             try {
                 const data = JSON.parse(message);
                 if (data.type === 'session_init') {

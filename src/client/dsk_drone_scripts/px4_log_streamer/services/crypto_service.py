@@ -18,7 +18,7 @@ class CryptoHandler:
         except Exception as e:
             raise ValueError(f"Invalid public key: {str(e)}")
     
-    def encrypt_session_key(self) -> dict:
+    def generate_encrypted_session_keys(self) -> dict:
         """Шифрует сессионный ключ для отправки на сервер"""
         if not self.server_public_key:
             raise ValueError("Server public key not set")
