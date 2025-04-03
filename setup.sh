@@ -384,17 +384,10 @@ else
     echo_setup_step "Локаль для текущей сессии уже настроена." "\\033[32m" 
 fi
 
-######################################## Создаем директорию ########################################################
-
-echo_setup_step true "Создаем директорию..." 
-
-create_directory "$PROJECT_ROOT/src/client"
-
 ######################################## React интерфейс для работы с сервером ########################################################
 
-echo_setup_step true "Установка React интерфейса..." 
+echo_setup_step true "Установка зависимостей React интерфейса..." 
 
-clone_repo "https://github.com/PakooGD/drone-dashboard.git" "$CLIENT_DIR" "drone_dashboard"
 cd "$CLIENT_DIR/drone_dashboard"
 # Установка серверных зависимостей
 if [ -d "$CLIENT_DIR/drone_dashboard/node_modules" ]; then
@@ -402,6 +395,22 @@ if [ -d "$CLIENT_DIR/drone_dashboard/node_modules" ]; then
     echo_setup_step "Зависимости React интерфейса уже установлены."
 else
     echo_setup_step "Установка зависимостей React интерфейса..."
+    npm install
+fi
+
+cd "$PROJECT_ROOT"
+
+######################################## Сервер ########################################################
+
+echo_setup_step true "Установка зависимостей сервера..." 
+
+cd "$SERVER_DIR"
+# Установка серверных зависимостей
+if [ -d "$SERVER_DIR/node_modules" ]; then
+    echo " "
+    echo_setup_step "Зависимости сервера уже установлены."
+else
+    echo_setup_step "Установка зависимостей сервера..."
     npm install
 fi
 

@@ -1,0 +1,36 @@
+.dashboard {
+  display: flex;
+  height: 100vh;
+}
+
+.mainContent {
+  flex-grow: 1;
+  display: flex;
+  background-color: #f5f5f5; /* Светло-серый */
+  position: relative;
+}
+
+.droneSection {
+  padding: 20px;
+  background-color: white;
+  border-right: 1px solid #ddd; /* Разделительная линия */
+  overflow: auto; /* Добавляем прокрутку, если контент не помещается */
+}
+
+.logSection {
+  padding: 20px;
+  background-color: white;
+  overflow: auto; /* Добавляем прокрутку, если контент не помещается */
+}
+
+.resizer {
+  width: 4px;
+  background-color: #ddd;
+  cursor: ew-resize; /* Курсор для изменения ширины */
+  position: relative;
+  z-index: 1;
+}
+
+.resizer:hover {
+  background-color: #bbb;
+}

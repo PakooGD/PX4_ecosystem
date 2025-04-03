@@ -1,5 +1,6 @@
 src/client/*
 !src/client/dsk_drone_scripts/
+!src/client/drone_dashboard/
 src/server/temp
 src/server/node_modules
 src/server/.env

@@ -1,0 +1,7 @@
+/* src/widgets/Sidebar/Sidebar.module.css */
+.sidebar {
+    width: 250px;
+    background-color: #1976d2; /* Синий */
+    color: white;
+    padding: 20px;
+  }

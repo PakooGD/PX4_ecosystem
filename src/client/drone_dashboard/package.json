@@ -1,0 +1,69 @@
+{
+  "name": "drone-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@foxglove/ulog": "^2.1.5",
+    "@mui/icons-material": "^6.4.8",
+    "@mui/material": "^6.4.8",
+    "@rerun-io/web-viewer": "^0.22.1",
+    "@rerun-io/web-viewer-react": "^0.22.1",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
+    "@testing-library/user-event": "^13.5.0",
+    "@types/jest": "^27.5.2",
+    "@types/node": "^16.18.126",
+    "@types/react": "^19.0.11",
+    "@types/react-dom": "^19.0.4",
+    "axios": "^1.8.3",
+    "cors": "^2.8.5",
+    "echarts": "^5.6.0",
+    "echarts-for-react": "^3.0.2",
+    "mobx": "^6.13.7",
+    "mobx-react-lite": "^4.1.0",
+    "plotly.js": "^3.0.1",
+    "plotly.js-dist-min": "^3.0.1",
+    "rc-slider": "^11.1.8",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-plotly.js": "^2.6.0",
+    "react-router-dom": "^7.3.0",
+    "react-scripts": "^5.0.1",
+    "react-select": "^5.10.1",
+    "recharts": "^2.15.1",
+    "sass": "^1.86.0",
+    "typescript": "^3.9.10",
+    "uuid": "^11.1.0",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "proxy": "http://localhost:5000/",
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@types/plotly.js": "^2.35.2",
+    "@types/react-plotly.js": "^2.6.3"
+  }
+}
