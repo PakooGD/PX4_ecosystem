@@ -23,12 +23,9 @@ class MavlinkLogStreaming:
         self.mavlink_connection_string = 'udpin:127.0.0.1:14540'
         self._debug = debug
         
-        # MAVLink connection
-        self.debug(f"Connecting with MAVLink to {self.mavlink_connection_string}...")
-        self.mav = mavutil.mavlink_connection(self.mavlink_connection_string, autoreconnect=True)
-        self.mav.wait_heartbeat()
-        self.debug("HEARTBEAT OK\nMAVLink connection established\n")
-        
+        # MAVLink
+        self.mav = None
+
         # Logging state
         self.got_ulog_header = False
         self.got_header_section = False
@@ -41,8 +38,11 @@ class MavlinkLogStreaming:
         # WebSocket setup
         self.websocket_url = 'ws://localhost:8082'
         self.websocket_service = WebSocketService(self.websocket_url)
+        self.websocket_service.register_message_handler('start_log', self._handle_start_command)
+        self.websocket_service.register_message_handler('stop_log', self._handle_stop_command)
+        self._connected = False
+
         self.auth = AuthHandler()
-        self.websocket_service.register_message_handler('fetchInfo', self.handle_fetch_info)
         # Threading and async
         self.message_queue = queue.Queue()
         self.running = False
@@ -50,6 +50,8 @@ class MavlinkLogStreaming:
         self.websocket_task = None
         self.sender_task = None
         
+        self.unsent_messages = []
+        self.max_unsent_messages = 1000 
         # Timing
         self.start_time = timer()
 
@@ -57,15 +59,64 @@ class MavlinkLogStreaming:
         """Debug output"""
         if self._debug >= level:
             print(message)
-            
-    async def handle_fetch_info(self, message):
-        """Обработчик сообщения fetchInfo"""
-        self.debug("Received fetchInfo request")
-        # Можно отправить какую-то информацию в ответ
-        return True
     
+    async def _handle_start_command(self, data: dict):
+        """Handle start command from server"""
+        self.debug("Received START command from server")
+        if not self.logging_started:
+            # Initialize MAVLink connection
+            try:
+                self.debug(f"Connecting with MAVLink to {self.mavlink_connection_string}...")
+                self.mav = mavutil.mavlink_connection(self.mavlink_connection_string, autoreconnect=True)
+                self.mav.wait_heartbeat()
+                self.debug("MAVLink connection established\n")
+                
+                # Start logging
+                self.start_log()
+
+                # Start MAVLink reader thread
+                self.mavlink_thread = threading.Thread(
+                    target=self.mavlink_reader,
+                    daemon=True
+                )
+                self.mavlink_thread.start()
+    
+                
+            except Exception as e:
+                self.debug(f"Error starting MAVLink: {e}")
+                await self.websocket_service.send({'type': 'error', 'message': f'Failed to start MAVLink: {e}'})
+
+    async def _handle_stop_command(self, data: dict):
+        """Handle stop command from server"""
+        self.debug("Received STOP command from server")
+        if self.logging_started:
+            self.stop_log()
+            # Reset state
+            self.logging_started = False
+            self.got_ulog_header = False
+            self.got_header_section = False
+            self.last_sequence = -1
+            
+            # Clean up MAVLink connection
+            if self.mav:
+                try:
+                    self.mav.close()
+                except Exception as e:
+                    self.debug(f"Error closing MAVLink: {e}")
+                finally:
+                    self.mav = None
+            
+            # Stop MAVLink thread if running
+            if self.mavlink_thread and self.mavlink_thread.is_alive():
+                self.mavlink_thread.join(timeout=2)
+                if self.mavlink_thread.is_alive():
+                    self.debug("Warning: MAVLink thread did not exit cleanly")
+
     async def socket_connection(self):
         """Establish and maintain WebSocket connection"""
+        retry_delay = 1
+        max_retry_delay = 30
+
         while self.running:
             try:
                 access_token = self.auth.load_tokens()
@@ -75,44 +126,66 @@ class MavlinkLogStreaming:
                     continue
 
                 headers = {'Authorization': f'Bearer {access_token}'}
-                await self.websocket_service.connect(headers=headers)
-                
+                self._connected = await self.websocket_service.connect(headers=headers)
+                retry_delay = 1
+
+                self.debug("WebSocket connection established")
+
                 # Start sender task after successful connection
                 self.sender_task = asyncio.create_task(self.message_sender())
-                await asyncio.sleep(1)  # Small delay to stabilize
                 
                 # Keep connection alive
                 while self.running and self.websocket_service.websocket:
                     await asyncio.sleep(1)
                     
             except Exception as e:
-                self.debug(f"WebSocket error: {e}")
-                await asyncio.sleep(5)
+                self.debug(f"WebSocket connection error: {e}. Retrying in {retry_delay} seconds...")
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, max_retry_delay)
 
     async def message_sender(self):
-        """Отправка сообщений через WebSocket"""
-        while self.running and self.websocket_service.websocket:
+        """Send messages through WebSocket with retries"""
+        while self.running:
             try:
-                if not self.message_queue.empty():
-                    data = self.message_queue.get_nowait()
+                if not self.websocket_service or not self._connected:
+                    await asyncio.sleep(1)
+                    continue
                     
-                    # Подготовка сообщения в правильном формате
-                    payload = {
-                        'type': 'ulog',
-                        'data': data.hex()  # Преобразование в hex строку
-                    }
-                    
-                    # Отправка через WebSocketService с шифрованием
-                    success = await self.websocket_service.send(payload)
+                # First send unsent messages
+                while self.unsent_messages:
+                    data = self.unsent_messages.pop(0)
+                    success = await self.try_send_message(data)
                     if not success:
-                        self.debug("Failed to send message, requeuing...")
-                        self.message_queue.put(data)
-                        await asyncio.sleep(1)
-                else:
-                    await asyncio.sleep(0.1)
+                        self.unsent_messages.insert(0, data)
+                        break
+                        
+                # Then new messages from queue
+                while not self.message_queue.empty():
+                    data = self.message_queue.get_nowait()
+                    success = await self.try_send_message(data)
+                    if not success:
+                        self.unsent_messages.append(data)
+                        if len(self.unsent_messages) > self.max_unsent_messages:
+                            self.unsent_messages.pop(0)
+                        break
+                        
+                await asyncio.sleep(0.1)
+                
             except Exception as e:
                 self.debug(f"Message sender error: {e}")
                 await asyncio.sleep(1)
+
+    async def try_send_message(self, data):
+        """Try to send message with error handling"""
+        try:
+            payload = {
+                'type': 'ulog',
+                'data': data.hex()
+            }
+            return await self.websocket_service.send(payload)
+        except Exception as e:
+            self.debug(f"Send message error: {e}")
+            return False
 
     def start_log(self):
         """Start MAVLink logging"""
@@ -122,6 +195,7 @@ class MavlinkLogStreaming:
             mavutil.mavlink.MAV_CMD_LOGGING_START, 0,
             0, 0, 0, 0, 0, 0, 0
         )
+        self.logging_started = True
 
     def stop_log(self):
         """Stop MAVLink logging"""
@@ -131,6 +205,7 @@ class MavlinkLogStreaming:
             mavutil.mavlink.MAV_CMD_LOGGING_STOP, 0,
             0, 0, 0, 0, 0, 0, 0
         )
+        self.logging_started = False
 
     def mavlink_reader(self):
         """Thread for reading MAVLink messages"""
@@ -138,40 +213,48 @@ class MavlinkLogStreaming:
         measured_data = 0
         next_heartbeat_time = timer()
 
-        while self.running:
+        while self.running and self.logging_started:
             try:
                 # Send heartbeat periodically
                 if timer() > next_heartbeat_time:
-                    self.mav.mav.heartbeat_send(
-                        mavutil.mavlink.MAV_TYPE_GCS,
-                        mavutil.mavlink.MAV_AUTOPILOT_GENERIC, 0, 0, 0
-                    )
-                    next_heartbeat_time = timer() + 1
+                    try:
+                        self.mav.mav.heartbeat_send(
+                            mavutil.mavlink.MAV_TYPE_GCS,
+                            mavutil.mavlink.MAV_AUTOPILOT_GENERIC, 0, 0, 0
+                        )
+                        next_heartbeat_time = timer() + 1
+                    except (AttributeError, OSError) as e:
+                        self.debug(f"Heartbeat send failed: {e}")
+                        break
 
-                # Read and process messages
-                m, first_msg_start, num_drops = self.read_message()
-                if m is not None:
-                    self.process_streamed_ulog_data(m, first_msg_start, num_drops)
+                # Read message with timeout
+                try:
+                    m, first_msg_start, num_drops = self.read_message()
+                    if m is not None:
+                        self.process_streamed_ulog_data(m, first_msg_start, num_drops)
 
                     # Status output
-                    if self.logging_started:
+                    if m is not None:
                         measured_data += len(m)
-                        measure_time_cur = timer()
-                        dt = measure_time_cur - measure_time_start
-                        if dt > 1:
-                            sys.stdout.write('\rData Rate: {:0.1f} KB/s  Drops: {:} \033[K'.format(
-                                measured_data / dt / 1024, self.num_dropouts))
-                            sys.stdout.flush()
-                            measure_time_start = measure_time_cur
-                            measured_data = 0
+                    measure_time_cur = timer()
+                    dt = measure_time_cur - measure_time_start
+                    if dt > 1:
+                        sys.stdout.write('\rData Rate: {:0.1f} KB/s  Drops: {:} \033[K'.format(
+                            measured_data / dt / 1024, self.num_dropouts))
+                        sys.stdout.flush()
+                        measure_time_start = measure_time_cur
+                        measured_data = 0
 
-                if not self.logging_started and timer() - self.start_time > 4:
-                    self.debug("Start timed out. Is the logger running in MAVLink mode?")
-                    self.running = False
+                except (OSError, IOError) as e:
+                    if "Bad file descriptor" in str(e):
+                        break
+                    raise
 
+            except LoggingCompleted:
+                break
             except Exception as e:
                 self.debug(f"MAVLink reader error: {e}")
-                self.running = False
+                break
 
     def process_streamed_ulog_data(self, data, first_msg_start, num_drops):
         """Process received ULog data"""
@@ -225,7 +308,7 @@ class MavlinkLogStreaming:
         m = self.mav.recv_match(
             type=['LOGGING_DATA_ACKED', 'LOGGING_DATA', 'COMMAND_ACK'],
             blocking=True,
-            timeout=0.05
+            timeout=0.1
         )
         
         if m is None:
@@ -235,7 +318,7 @@ class MavlinkLogStreaming:
 
         if m.get_type() == 'COMMAND_ACK':
             if m.command == mavutil.mavlink.MAV_CMD_LOGGING_START and not self.got_header_section:
-                if m.result == 0:
+                if m.result == 0 or m.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
                     self.logging_started = True
                     self.debug('Logging started. Waiting for Header...')
                 else:
@@ -259,7 +342,6 @@ class MavlinkLogStreaming:
 
             if m.get_type() == 'LOGGING_DATA' and not self.got_header_section:
                 self.debug(f'Header received in {timer()-self.start_time:.2f}s')
-                self.logging_started = True
                 self.got_header_section = True
 
             self.last_sequence = m.sequence
@@ -283,71 +365,78 @@ class MavlinkLogStreaming:
             return False, 0
 
     async def cleanup(self):
-        """Clean up resources"""
+        """Improved cleanup method"""
         self.debug("Starting cleanup...")
         self.running = False
 
-        # Stop MAVLink thread
-        if self.mavlink_thread and self.mavlink_thread.is_alive():
-            self.mavlink_thread.join(timeout=2)
-            if self.mavlink_thread.is_alive():
-                self.debug("Warning: MAVLink thread did not exit cleanly")
-
-        # Stop sender task
-        if self.sender_task and not self.sender_task.done():
-            self.sender_task.cancel()
+        # Stop MAVLink thread first
+        if hasattr(self, 'mavlink_thread') and self.mavlink_thread:
+            self.mavlink_thread.join(timeout=1)
+        
+        # Then close MAVLink connection
+        if hasattr(self, 'mav') and self.mav:
             try:
-                await self.sender_task
+                self.mav.close()
+            except Exception as e:
+                self.debug(f"Error closing MAVLink: {e}")
+        
+        # Cancel async tasks
+        tasks = []
+        if hasattr(self, 'sender_task') and self.sender_task:
+            tasks.append(self.sender_task)
+        if hasattr(self, 'websocket_task') and self.websocket_task:
+            tasks.append(self.websocket_task)
+        
+        for task in tasks:
+            try:
+                task.cancel()
+                await task
             except asyncio.CancelledError:
                 pass
-
-        # Disconnect WebSocket
-        if self.websocket_service:
+            except Exception as e:
+                self.debug(f"Error cancelling task: {e}")
+        
+        # Finally disconnect WebSocket
+        if hasattr(self, 'websocket_service') and self.websocket_service:
             await self.websocket_service.disconnect()
-
-        # Close MAVLink connection
-        if self.mav:
-            self.stop_log()
-            self.mav.close()
-
+        
         self.debug("Cleanup completed")
 
 async def run(mav_log_streaming):
-    """Main async run loop"""
+    """Improved main run loop with better signal handling"""
     try:
-        # Set up signal handlers
         loop = asyncio.get_running_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(
-                sig,
-                lambda: asyncio.create_task(mav_log_streaming.cleanup())
-            )
-
+        
+        # Use signals only if in main thread
+        if threading.current_thread() is threading.main_thread():
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                try:
+                    loop.add_signal_handler(
+                        sig,
+                        lambda: asyncio.create_task(mav_log_streaming.cleanup())
+                    )
+                except NotImplementedError:
+                    # Not all platforms support signals
+                    pass
+        
         mav_log_streaming.running = True
-        
-        # Start MAVLink logging
-        mav_log_streaming.start_log()
-        
-        # Start MAVLink reader thread
-        mav_log_streaming.mavlink_thread = threading.Thread(
-            target=mav_log_streaming.mavlink_reader,
-            daemon=True
-        )
-        mav_log_streaming.mavlink_thread.start()
         
         # Start WebSocket connection
         mav_log_streaming.websocket_task = asyncio.create_task(
             mav_log_streaming.socket_connection()
         )
-        
+
         # Main loop
         while mav_log_streaming.running:
             await asyncio.sleep(1)
             
+    except asyncio.CancelledError:
+        pass
     except Exception as e:
         mav_log_streaming.debug(f"Error in main loop: {e}")
     finally:
-        await mav_log_streaming.cleanup()
+        if mav_log_streaming.running:
+            await mav_log_streaming.cleanup()
 
 def main():
     mav_log_streaming = MavlinkLogStreaming(debug=1)
