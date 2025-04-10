@@ -5,7 +5,13 @@ export enum EventTypes {
     SIGNIN = 'SIGNIN',
     SET_OFFLINE_STATUS = 'SET_OFFLINE_STATUS',
     UPDATE_DATA = 'UPDATE_DATA',
-    KEY_EXCHANGE = 'KEY_EXCHANGE'
+    KEY_EXCHANGE = 'KEY_EXCHANGE',
+    SAVE_LOG = 'SAVE_LOG'
+}
+
+export enum CompressionType {
+    none = 'none',
+    gzip = 'gzip',
 }
 
 export interface DroneSession {

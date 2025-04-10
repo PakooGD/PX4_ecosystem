@@ -4,6 +4,8 @@ import { OperationFailed } from '../utils/errors/errors';
 import { droneClients,server } from '../app';
 import { Channels, Subscriptions } from '../utils/LogVisualizers/FoxgloveVisualizer';
 import { AuthService } from './auth.service';
+import fs from 'fs';
+import path from 'path';
 
 const visualizers = new Map<string, DataVisualizer>();
 
@@ -25,6 +27,44 @@ export class DroneHandler {
             visualizers.set(data.droneId, visualizer);
         } catch (err) {
             throw new OperationFailed(`Failed to set visualizer: ${err}`);
+        }
+    }
+
+    public static async loadLogs(data:any, res: any): Promise<any> {
+        try {
+            // Находим все файлы, начинающиеся на drone_id и заканчивающиеся на .ulog
+            const { droneId } = data
+
+            const logDir = '/home/alexei/Projects/PX4_ecosystem/src/server/temp/ulog';
+
+            if (!fs.existsSync(logDir)) {
+                throw new OperationFailed(`Log directory not found: ${logDir}`);
+            }
+
+            const files = fs.readdirSync(logDir)
+                .filter(file => file.startsWith(droneId) && file.endsWith('.ulg'))
+                .map(file => ({
+                    name: file,
+                    path: path.join(logDir, file),
+                    time: fs.statSync(path.join(logDir, file)).mtime.getTime() // Время последнего изменения
+                }));
+
+            if (files.length === 0) {
+                throw new OperationFailed(`No log files found for drone ${droneId}`);
+            }
+
+            // Выбираем файл с самой последней датой
+            const latestFile = files.reduce((prev, current) => 
+                (prev.time > current.time) ? prev : current
+            );
+            const fileData = fs.readFileSync(latestFile.path);
+            
+        // Устанавливаем заголовки для скачивания файла
+        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Content-Disposition', `attachment; filename="${latestFile.name}"`);
+        res.send(fileData);
+        } catch (err) {
+            throw new OperationFailed('Failed to load file');
         }
     }
 

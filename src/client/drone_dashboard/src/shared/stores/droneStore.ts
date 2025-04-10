@@ -1,7 +1,7 @@
 // src/shared/stores/droneStore.ts
 import { makeAutoObservable, observable } from 'mobx';
 import { fetchDrones, updateTopics, redirectLogs, loadLogs } from '../api/api';
-import { DroneData,Log,TopicStatus, LogMessage, ULogData, TopicData, TopicSchema } from '../types/ITypes';
+import { DroneData,Log,TopicStatus, LogMessage, ULogData, TopicData } from '../types/ITypes';
 import { v4 as uuidv4 } from 'uuid';
 import { MessageType, ULog } from "@foxglove/ulog";
 

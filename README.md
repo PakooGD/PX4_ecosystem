@@ -16,6 +16,22 @@
 - Start the ecosystem from root: `start_client` - will build the project, update packages and start the ecosystem
 - Start the server from src/server: `npm start` - will start the server
 
+# Database creation: 
+1. Firstly you have to install all nessesary dependencies
+- sudo apt update
+- sudo apt install postgresql postgresql-contrib
+- sudo systemctl start postgresql
+2. Then in the terminal paste it
+- sudo -u postgres psql
+3. Now we can create database with
+- CREATE DATABASE drone_db;
+4. We can configurate new user to deal with this DB
+- CREATE USER drone_user WITH PASSWORD 'yourpassword';
+- GRANT ALL PRIVILEGES ON DATABASE drone_db TO drone_user;
+- ALTER DATABASE drone_db OWNER TO drone_user;
+5. Now we can quit
+- \q
+
 # Docker (Not Working yet)
 1. Build: docker-compose build
 2. Launch conatiners: docker-compose up

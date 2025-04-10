@@ -184,7 +184,7 @@ def main():
     except KeyboardInterrupt:
         print("Exiting...")
     finally:
-        auth._delete_all_credentials() # for dev needs only
+        # auth._delete_all_credentials() # for dev needs only
         pass
 
 if __name__ == '__main__':

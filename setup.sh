@@ -255,28 +255,6 @@ install_apt_package "gstreamer1.0-plugins-bad"  # Плагины GStreamer (не
 install_apt_package "gstreamer1.0-libav"        # Плагины GStreamer для работы с libav
 install_apt_package "gstreamer1.0-gl"           # Плагины GStreamer для работы с OpenGL
 
-<<<<<<< HEAD
-=======
-# Установка CMake версии 3.21+
-install_package "cmake" "wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null && sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main' && sudo apt-get update && sudo apt-get install -y cmake"
-
-# Установка Node.js через nvm
-install_package "node" "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && \. \"$HOME/.nvm/nvm.sh\" && nvm install 22 && corepack enable"
-
-# Установка yq (утилита для работы с YAML)
-install_package "yq" "sudo snap install yq"
-
-# Установка empy
-install_package "pip" "pip install --user -U empy==3.3.4 pyros-genmsg setuptools"
-
-# Установка pycryptodome - для работы с шифрованием
-install_package "pycryptodome" "pip install pycryptodome"
-
-
-# Установка Rust и Cargo
-install_package "rustup" "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source $HOME/.cargo/env"
->>>>>>> origin/main
-
 ######################################## Удаление ########################################################
 
 echo_setup_step true "Удаление потенциально конфликтующих программ и пакетов"
@@ -287,74 +265,6 @@ if dpkg -l | grep -q "^ii  modemmanager "; then
 else
     echo_setup_step "modemmanager уже удалён." "\\033[32m" 
 fi
-
-######################################## Установка Qt 6.8.2 ########################################################
-
-
-# echo_setup_step true "Проверка и установка Qt 6.8.2..."
-
-# # Целевая версия Qt
-# TARGET_QT_VERSION="6.8.2"
-
-# # Проверяем, установлен ли Qt и его версию
-# if command -v qmake &> /dev/null; then
-#     INSTALLED_QT_VERSION=$(qmake --version | grep -oP "Qt version \K[0-9]+\.[0-9]+\.[0-9]+")
-#     if [ "$INSTALLED_QT_VERSION" == "$TARGET_QT_VERSION" ]; then
-#         echo_setup_step "Qt $TARGET_QT_VERSION уже установлен."
-#     else
-#         echo_setup_step "Установлена другая версия Qt ($INSTALLED_QT_VERSION). Требуется установка Qt $TARGET_QT_VERSION."
-#     fi
-# else
-#     echo_setup_step "Qt не установлен. Начинаем установку Qt $TARGET_QT_VERSION..."
-# fi
-
-# # Если Qt не установлен или установлена неправильная версия
-# if ! command -v qmake &> /dev/null || [ "$INSTALLED_QT_VERSION" != "$TARGET_QT_VERSION" ]; then
-#     # libxcb-cursor0 требуется для Ubuntu
-
-#     # Создаем директорию для Qt
-#     QT_INSTALL_DIR="$HOME/Qt"
-#     mkdir -p "$QT_INSTALL_DIR"
-#     cd "$QT_INSTALL_DIR" || { echo_setup_step "Ошибка: не удалось перейти в $QT_INSTALL_DIR"; exit 1; }
-
-#     # Скачиваем установщик Qt
-#     QT_INSTALLER_URL="https://d13lb3tujbc8s0.cloudfront.net/onlineinstallers/qt-online-installer-linux-x64-4.8.1.run"
-#     QT_INSTALLER_FILE=$(basename "$QT_INSTALLER_URL")
-
-#     if [ ! -f "$QT_INSTALLER_FILE" ]; then
-#         echo_setup_step "Скачивание установщика Qt..."
-#         wget "$QT_INSTALLER_URL" -O "$QT_INSTALLER_FILE"
-#         chmod +x "$QT_INSTALLER_FILE"
-#     else
-#         echo_setup_step "Установщик Qt уже скачан."
-#     fi
-
-#     # Запуск установщика Qt в автоматическом режиме
-#     echo_setup_step "Запуск установщика Qt..."
-#     ./"$QT_INSTALLER_FILE" --platform minimal --script "$PROJECT_ROOT/scripts/qt-installer-script.js" --verbose &
-
-#     # Ожидание завершения установки
-#     INSTALLER_PID=$!
-#     wait $INSTALLER_PID
-
-#     # Проверяем, успешно ли установлен Qt
-#     if [ -f "$QT_INSTALL_DIR/$TARGET_QT_VERSION/gcc_64/bin/qmake" ]; then
-#         echo_setup_step "Qt $TARGET_QT_VERSION успешно установлен."
-#     else
-#         echo_setup_step "Ошибка: Qt $TARGET_QT_VERSION не был установлен."
-#         exit 1
-#     fi
-# fi
-
-# # Добавляем Qt в PATH, если он еще не добавлен
-# QT_BIN_DIR="$QT_INSTALL_DIR/$TARGET_QT_VERSION/gcc_64/bin"
-# if ! grep -q "$QT_BIN_DIR" ~/.bashrc; then
-#     echo_setup_step "Добавление Qt в PATH..."
-#     echo_setup_step "export PATH=$QT_BIN_DIR:\$PATH" >> ~/.bashrc
-#     source ~/.bashrc
-# else
-#     echo_setup_step "Qt уже добавлен в PATH."
-# fi
 
 ######################################## Создаем локали для английского языка ########################################################
 

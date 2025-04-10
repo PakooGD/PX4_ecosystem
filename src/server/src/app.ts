@@ -10,18 +10,16 @@ import path from 'path';
 import { formatDate } from './utils/helpers/FormatHelper';
 import { CryptoService } from './services/encryption.service';
 import { AuthService } from './services/auth.service';
-
+import sequelize from './config/database';
 
 require('dotenv').config();
 
 const cryptoService = CryptoService.getInstance();
 
-
 const LOG_DIR = path.join(__dirname, '../temp/ulog');
 if (!fs.existsSync(LOG_DIR)) {
     fs.mkdirSync(LOG_DIR, { recursive: true });
 }
-
 
 const dronePort: any = process.env.DRONE || 8082;
 const foxglovePort: any = process.env.FOXGLOVE_PORT || 8081;
@@ -37,13 +35,11 @@ export const server = new FoxgloveServer({ name: "px4-foxglove-bridge" });
 export const reactClients = new Map<string, WebSocket | null>();
 export const droneClients = new Map<string, WebSocket | null>();
 
-
 eventEmitter.emit(EventTypes.SET_OFFLINE_STATUS);
-
 
 const app = express();
 app.use(cors({
-    origin: 'http://localhost:3000',
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
 }));
@@ -52,8 +48,29 @@ app.use('/api', droneRoutes);
 app.use(handleErrors);
 
 
+// Initialize database connection
+sequelize.authenticate()
+    .then(async () => {
+        console.log('Connection to PostgreSQL has been established successfully.');
+        
+        // Sync models with database
+        await sequelize.sync({ alter: true });
+        console.log('Database models synchronized');
+        
+        // Start HTTP server
+        app.listen(httpPort, () => {
+            console.log(`HTTP server running on http://localhost:${httpPort}`);
+            console.log(`Foxglove server running on ws://localhost:${foxglovePort}`);
+            console.log(`React client server running on ws://localhost:${reactPort}`);
+            console.log(`Drone server running on ws://localhost:${dronePort}`);
+        });
+    })
+    .catch((error) => {
+        console.error('Unable to connect to the database:', error);
+        process.exit(1);
+    });
+
 reactServer.on('connection', (ws) => {
-    console.log('New client connected');
     ws.on('message', (message: string) => {
         try {
             const data = JSON.parse(message);
@@ -68,19 +85,18 @@ reactServer.on('connection', (ws) => {
 
     ws.on('close', () => {
         console.log('Client disconnected');
-        for (const id in reactClients) {
-            reactClients.delete(id);
-            console.log(`Client unregistered for drone ${id}`);
+        for (const [id, client] of reactClients.entries()) {
+            if (client === ws) {
+                reactClients.delete(id);
+                console.log(`Client unregistered for drone ${id}`);
+            }
         }
     });
 });
 
-
 foxgloveServer.on("connection", (conn: any, req: any) => {
     const name = `${req.socket.remoteAddress}:${req.socket.remotePort}`;
 
-    server.on("subscribe", (chanId) => {});
-    server.on("unsubscribe", (chanId) => {});
     server.on("error", (err) => {
         console.error("server error: %o", err);
     });
@@ -89,9 +105,9 @@ foxgloveServer.on("connection", (conn: any, req: any) => {
 });
 
 
-droneServer.on('connection', (ws, req) => {
+droneServer.on('connection', async (ws, req) => {
     try {
-        const decoded = AuthService.verifyAuthTokens(req)
+        const decoded = await AuthService.verifyAuthTokens(req)
         const droneId = decoded.drone_id
 
         ws.send(JSON.stringify({
@@ -99,36 +115,43 @@ droneServer.on('connection', (ws, req) => {
             publicKey: cryptoService.getPublicKey()
         }));
 
-        const file = `${formatDate(Date.now(), "DD_MM_YYYY-HH_mm")}.ulg`
-        const filename = path.join(LOG_DIR, file);
-        const fileStream = fs.createWriteStream(filename);
-
         eventEmitter.emit(EventTypes.SIGNIN, droneId);
         droneClients.set(droneId, ws);
 
-        ws.binaryType = 'arraybuffer'
-        ws.on('message', (message: string) => {
-            
+        let fileStream: any = null;
+        
+        ws.on('message', async (message: string) => {
             try {
                 const data = JSON.parse(message);
+
                 if (data.type === 'session_init') {
                     if (cryptoService.initDroneSession(
                         droneId, 
                         data.key, 
                         data.iv
                     )) {
-                        ws.send(JSON.stringify({ type: 'fetchInfo' }));
+                        ws.send(JSON.stringify({ type: 'session_ack' }));
+                        ws.send(JSON.stringify({ type: 'start_log' }));
                     }
-                } else {
-                    const decryptedData = cryptoService.decryptDroneMessage(droneId, data);
-                    if (decryptedData.type === 'data') eventEmitter.emit(EventTypes.RECEIVED_DATA, droneId, decryptedData, ws); 
-                    if (decryptedData.type === 'info') eventEmitter.emit(EventTypes.UPDATE_DATA, droneId, decryptedData, ws); 
-                    if (decryptedData.type === 'ulog') {
-                        const data = Buffer.from(decryptedData.data, 'hex');
-                        fileStream.write(data);
+                    return;
+                } 
+
+                const decryptedData = cryptoService.decryptDroneMessage(droneId, data);
+
+                if (decryptedData.type === 'data') eventEmitter.emit(EventTypes.RECEIVED_DATA, droneId, decryptedData, ws); 
+                if (decryptedData.type === 'info') eventEmitter.emit(EventTypes.UPDATE_DATA, droneId, decryptedData, ws); 
+                if (decryptedData.type === 'ulog') {
+                    if(!fileStream){
+                        const file = `${droneId}_${formatDate(Date.now(), "DD_MM_YYYY-HH_mm")}.ulg`
+                        const filename = path.join(LOG_DIR, file);
+                        fileStream = fs.createWriteStream(filename);
                     }
-                    ws.send(JSON.stringify({ type: 'ack' }));
+
+                    const data = Buffer.from(decryptedData.data, 'hex');
+                    fileStream.write(data);
                 }
+
+                ws.send(JSON.stringify({ type: 'ack' }));
 
             } catch (err) {
                 console.error('Error processing message:', err);
@@ -136,30 +159,45 @@ droneServer.on('connection', (ws, req) => {
             }
         });
 
-        ws.on('close', () => {
-            droneClients.delete(droneId);
-            eventEmitter.emit(EventTypes.LOGOUT, droneId);
-            fileStream.end();
-        });
-        
+        ws.on('close', async () => {
+            try {
+                if(fileStream) await fileStream.end();
+            } catch(err) {
+                console.error(err)
+            } finally {
+                droneClients.delete(droneId);
+                eventEmitter.emit(EventTypes.LOGOUT, droneId);
+            }
+        });      
     } catch(error) {
         console.error(error);
     }
 });
 
-
-const httpServer = app.listen(httpPort, () => {
-    console.log(`HTTP server running on http://localhost:${httpPort}`);
-    console.log(`Foxglove server running on ws://localhost:${foxglovePort}`);
-    console.log(`React client server running on ws://localhost:${reactPort}`);
-    console.log(`Drone server running on ws://localhost:${dronePort}`);
-});
-
 // Cleanup on server shutdown
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
     console.log('Shutting down servers...');
-    eventEmitter.emit(EventTypes.SET_OFFLINE_STATUS);
-    httpServer.close();
-    process.exit(0);
+    
+    try {
+        eventEmitter.emit(EventTypes.SET_OFFLINE_STATUS);
+        
+        // Close all WebSocket connections
+        reactServer.clients.forEach(client => client.close());
+        foxgloveServer.clients.forEach(client => client.close());
+        droneServer.clients.forEach(client => client.close());
+        
+        // Close servers
+        reactServer.close();
+        foxgloveServer.close();
+        droneServer.close();
+        
+        // Close database connection
+        await sequelize.close();
+        
+        process.exit(0);
+    } catch (err) {
+        console.error('Error during shutdown:', err);
+        process.exit(1);
+    }
 });
 

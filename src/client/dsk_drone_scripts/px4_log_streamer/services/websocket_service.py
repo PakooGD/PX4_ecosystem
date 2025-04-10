@@ -61,7 +61,7 @@ class WebSocketService:
                 # Ждем подтверждения инициализации
                 ack = await self.websocket.recv()
                 ack_data = json.loads(ack)
-                if ack_data.get('type') == 'fetchInfo':
+                if ack_data.get('type') == 'session_ack':
                     self._session_initialized = True
                     
                     # Отправляем все ожидающие сообщения

@@ -259,8 +259,8 @@ class MavlinkLogStreaming:
     def process_streamed_ulog_data(self, data, first_msg_start, num_drops):
         """Process received ULog data"""
         try:
-            if not self.got_ulog_header:
-                if len(data) < 16:
+            if not self.got_ulog_header: # the first 16 bytes need special treatment
+                if len(data) < 16: # that's never the case anyway
                     raise Exception('First message too short')
                 self.message_queue.put(bytearray(data[0:16]))
                 data = data[16:]
@@ -268,35 +268,37 @@ class MavlinkLogStreaming:
 
             if self.got_header_section and num_drops > 0:
                 num_drops = min(num_drops, 25)
+                # write a dropout message. We don't really know the actual duration,
+                # so just use the number of drops * 10 ms
                 self.message_queue.put(bytearray([2, 0, 79, num_drops*10, 0]))
 
             if num_drops > 0:
-                if self.ulog_message:
-                    self.message_queue.put(bytearray(self.ulog_message))
+                self.send_ulog_messages(self.ulog_message)
                 self.ulog_message = []
                 if first_msg_start == 255:
-                    return
+                    return # no useful information in this message: drop it
                 data = data[first_msg_start:]
                 first_msg_start = 0
 
-            if first_msg_start == 255 and self.ulog_message:
+            if first_msg_start == 255 and len(self.ulog_message) > 0:
                 self.ulog_message.extend(data)
                 return
 
-            if self.ulog_message:
+            if len(self.ulog_message) > 0:
                 self.message_queue.put(bytearray(self.ulog_message + data[:first_msg_start]))
                 self.ulog_message = []
 
             remaining_data = self.send_ulog_messages(data[first_msg_start:])
-            self.ulog_message = remaining_data
+            self.ulog_message = remaining_data  # store the rest for the next message
 
         except Exception as e:
             self.debug(f"ULog processing error: {e}")
 
     def send_ulog_messages(self, data):
-        """Send complete ULog messages from data buffer"""
+        ''' send ulog data w/o integrity checking, assuming data starts with a
+        valid ulog message. returns the remaining data at the end. '''
         while len(data) > 2:
-            message_length = data[0] + data[1] * 256 + 3
+            message_length = data[0] + data[1] * 256 + 3 # 3=ULog msg header
             if message_length > len(data):
                 break
             self.message_queue.put(bytearray(data[:message_length]))
@@ -308,17 +310,16 @@ class MavlinkLogStreaming:
         m = self.mav.recv_match(
             type=['LOGGING_DATA_ACKED', 'LOGGING_DATA', 'COMMAND_ACK'],
             blocking=True,
-            timeout=0.1
+            timeout=0.05
         )
         
         if m is None:
             return None, 0, 0
-
         self.debug(m, 3)
 
         if m.get_type() == 'COMMAND_ACK':
             if m.command == mavutil.mavlink.MAV_CMD_LOGGING_START and not self.got_header_section:
-                if m.result == 0 or m.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
+                if m.result == 0:
                     self.logging_started = True
                     self.debug('Logging started. Waiting for Header...')
                 else:
@@ -340,28 +341,33 @@ class MavlinkLogStreaming:
             if num_drops > 0:
                 self.num_dropouts += num_drops
 
-            if m.get_type() == 'LOGGING_DATA' and not self.got_header_section:
-                self.debug(f'Header received in {timer()-self.start_time:.2f}s')
-                self.got_header_section = True
-
+            if m.get_type() == 'LOGGING_DATA':
+                if not self.got_header_section:
+                    self.debug(f'Header received in {timer()-self.start_time:.2f}s')
+                    self.logging_started = True
+                    self.got_header_section = True
             self.last_sequence = m.sequence
             return m.data[:m.length], m.first_message_offset, num_drops
+        else:
+            self.debug('dup/reordered message '+str(m.sequence))
 
         return None, 0, 0
 
     def check_sequence(self, seq):
-        """Check message sequence number"""
+        ''' check if a sequence is newer than the previously received one & if
+        there were dropped messages between the last and this '''
         if self.last_sequence == -1:
             return True, 0
-        if seq == self.last_sequence:
+        if seq == self.last_sequence: # duplicate
             return False, 0
         if seq > self.last_sequence:
-            if seq - self.last_sequence > (1 << 15):
+            # account for wrap-arounds, sequence is 2 bytes
+            if seq - self.last_sequence > (1<<15): # assume reordered
                 return False, 0
             return True, seq - self.last_sequence - 1
         else:
-            if self.last_sequence - seq > (1 << 15):
-                return True, (1 << 16) - self.last_sequence - 1 + seq
+            if self.last_sequence - seq > (1<<15):
+                return True, (1<<16) - self.last_sequence - 1 + seq
             return False, 0
 
     async def cleanup(self):
