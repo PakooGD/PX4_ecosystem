@@ -1,7 +1,13 @@
 import { Table, Column, Model, ForeignKey, BelongsTo, DataType } from 'sequelize-typescript';
 import { Drone } from './';
 
-@Table({ tableName: 'topics' })
+@Table({ 
+  tableName: 'topics', 
+  indexes: [
+    { unique: true, fields: ['topic'] },
+    { fields: ['drone_id'] }
+  ] 
+})
 export class Topic extends Model {
   @Column({
     type: DataType.STRING(100),

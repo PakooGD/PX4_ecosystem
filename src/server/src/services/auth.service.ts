@@ -160,67 +160,142 @@ export class AuthService {
     }
 
     public static async UpdateData(drone_id: string, data: { topics: any[], ip: string }): Promise<void> {
+        // Проверка входных параметров
+        if (!drone_id) {
+            throw new OperationFailed('Drone ID is required');
+        }
+    
         const transaction = await Drone.sequelize?.transaction();
         try {
-            // Update drone IP address
-            await Drone.update(
+            // 1. Проверяем существование дрона перед обновлением
+            const droneExists = await Drone.count({ where: { drone_id }, transaction });
+            if (!droneExists) {
+                throw new OperationFailed(`Drone with ID ${drone_id} not found`);
+            }
+    
+            // 2. Обновляем IP адрес (если он изменился)
+            const [updatedCount] = await Drone.update(
                 { ip_address: data.ip },
-                { where: { drone_id }, transaction }
+                { 
+                    where: { drone_id }, 
+                    transaction,
+                    validate: true // Включаем валидацию модели
+                }
             );
-
-            // Update topics
-            if (data.topics && data.topics.length > 0) {
+    
+            if (updatedCount === 0) {
+                // console.warn(`IP address not updated for drone ${drone_id} (no changes detected)`);
+            }
+    
+            // 3. Обрабатываем топики (если они есть)
+            if (data.topics?.length > 0) {
+                // Валидация структуры топиков
+                for (const topic of data.topics) {
+                    if (!topic.topic || typeof topic.topic !== 'string') {
+                        throw new OperationFailed('Invalid topic format: topic field is required and must be a string');
+                    }
+                }
+    
                 const existingTopics = await Topic.findAll({
                     where: { drone_id },
-                    transaction
+                    transaction,
+                    attributes: ['id', 'topic', 'name', 'status'] // Выбираем только нужные поля
                 });
-                const topicsToCreate = [];
-                const topicsToUpdate = [];
-
+    
+                // Подготовка операций
+                const operations = {
+                    create: [] as Array<{ topic: string; name: string; status: boolean; drone_id: string }>,
+                    update: [] as Array<{ id: string; data: Partial<Topic> }>,
+                    delete: [] as string[]
+                };
+    
+                // Анализ изменений
                 for (const newTopic of data.topics) {
                     const existingTopic = existingTopics.find(t => t.topic === newTopic.topic);
                     
                     if (existingTopic) {
-                        topicsToUpdate.push(
-                            Topic.update(newTopic, {
-                                where: { id: existingTopic.id },
-                                transaction
-                            })
+                        // Проверяем, есть ли реальные изменения
+                        const needsUpdate = Object.keys(newTopic).some(
+                            key => existingTopic.get(key as keyof Topic) !== newTopic[key]
                         );
+                        
+                        if (needsUpdate) {
+                            operations.update.push({
+                                id: existingTopic.id,
+                                data: {
+                                    name: newTopic.name,
+                                    status: newTopic.status
+                                }
+                            });
+                        }
                     } else {
-                        topicsToCreate.push({
-                            ...newTopic,
+                        // Проверяем уникальность topic перед созданием
+                        const topicExists = await Topic.findOne({
+                            where: { topic: newTopic.topic },
+                            transaction
+                        });
+                        
+                        if (topicExists) {
+                            throw new OperationFailed(
+                                `Topic '${newTopic.topic}' already exists for another drone`
+                            );
+                        }
+    
+                        operations.create.push({
+                            topic: newTopic.topic,
+                            name: newTopic.name,
+                            status: newTopic.status ?? false,
                             drone_id
                         });
                     }
                 }
     
-                const topicsToRemove = existingTopics.filter(et => 
-                    !data.topics.some(t => t.topic === et.topic)
-                );
-                
-                if (topicsToRemove.length > 0) {
+                // Определяем топики для удаления
+                operations.delete = existingTopics
+                    .filter(et => !data.topics.some(t => t.topic === et.topic))
+                    .map(t => t.id);
+    
+                // Выполняем операции в оптимальном порядке
+                if (operations.delete.length > 0) {
                     await Topic.destroy({
-                        where: {
-                            id: topicsToRemove.map(t => t.id)
-                        },
+                        where: { id: operations.delete },
                         transaction
                     });
                 }
     
-                // Выполняем операции
-                await Promise.all(topicsToUpdate);
-                
-                if (topicsToCreate.length > 0) {
-                    await Topic.bulkCreate(topicsToCreate, { transaction });
+                if (operations.update.length > 0) {
+                    await Promise.all(
+                        operations.update.map(op =>
+                            Topic.update(op.data, {
+                                where: { id: op.id },
+                                transaction,
+                                validate: true
+                            })
+                        )
+                    );
+                }
+    
+                if (operations.create.length > 0) {
+                    try {
+                        await Topic.bulkCreate(operations.create, {
+                            transaction,
+                            validate: true,
+                            returning: false
+                        });
+                    } catch (bulkCreateError) {
+                        throw bulkCreateError;
+                    }
                 }
             }
-
+    
             await transaction?.commit();
         } catch (err) {
             await transaction?.rollback();
-            throw new OperationFailed(`Failed to update drone data: ${err}`);
+            
+            throw new OperationFailed(
+                `Failed to update drone data: ${err instanceof Error ? err.message : err}`,
+            );
         }
-    };
+    }
     
 }

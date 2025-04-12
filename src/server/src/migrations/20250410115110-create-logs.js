@@ -23,7 +23,7 @@ module.exports = {
         defaultValue: 'gzip'
       },
       log_data: {
-        type: Sequelize.BLOB('long'),
+        type: Sequelize.BLOB,
         allowNull: false
       },
       drone_id: {

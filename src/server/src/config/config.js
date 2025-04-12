@@ -3,7 +3,7 @@ require('dotenv').config();
 module.exports = {
   development: {
     database: process.env.DB_NAME || 'drone_db',
-    username: process.env.DB_USER || 'postgres',
+    username: process.env.DB_USER || 'drone_user',
     password: process.env.DB_PASSWORD || 'dsk_supply_password',
     host: process.env.DB_HOST || 'localhost',
     port: process.env.DB_PORT || 5432,

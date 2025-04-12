@@ -6,7 +6,7 @@ require('dotenv').config();
 const sequelize = new Sequelize({
   database: process.env.DB_NAME || 'drone_db',
   dialect: 'postgres',
-  username: process.env.DB_USER || 'postgres',
+  username: process.env.DB_USER || 'drone_user',
   password: process.env.DB_PASSWORD || 'dsk_supply_password',
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432'),
