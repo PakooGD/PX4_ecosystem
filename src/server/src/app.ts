@@ -5,26 +5,15 @@ import { handleErrors } from './middleware/error.middleware';
 import WebSocket, { WebSocketServer } from 'ws';
 import { FoxgloveServer } from '@foxglove/ws-protocol';
 import cors from 'cors';
-import fs from 'fs';
-import path from 'path';
-import { formatDate } from './utils/helpers/FormatHelper';
-import { CryptoService } from './services/encryption.service';
-import { AuthService } from './services/auth.service';
+import { CryptoService, AuthService, LogService } from './services';
 import sequelize from './config/database';
+import { dronePort, foxglovePort, httpPort, reactPort } from './config/serverConfig'
+
+
 
 require('dotenv').config();
 
 const cryptoService = CryptoService.getInstance();
-
-const LOG_DIR = path.join(__dirname, '../temp/ulog');
-if (!fs.existsSync(LOG_DIR)) {
-    fs.mkdirSync(LOG_DIR, { recursive: true });
-}
-
-const dronePort: any = process.env.DRONE || 8082;
-const foxglovePort: any = process.env.FOXGLOVE_PORT || 8081;
-const httpPort: any = process.env.SERVER_PORT || 5000;
-const reactPort: any = process.env.REACT_PORT || 8083;
 
 const foxgloveServer = new WebSocketServer({ port: foxglovePort, handleProtocols: (protocols: any) => server?.handleProtocols(protocols)!});
 const reactServer = new WebSocketServer({ port: reactPort });
@@ -48,7 +37,7 @@ app.use('/api', droneRoutes);
 app.use(handleErrors);
 
 
-// Initialize database connection
+
 sequelize.authenticate()
     .then(async () => {
         console.log('Connection to PostgreSQL has been established successfully.');
@@ -104,7 +93,6 @@ foxgloveServer.on("connection", (conn: any, req: any) => {
     server?.handleConnection(conn, name);
 });
 
-
 droneServer.on('connection', async (ws, req) => {
     try {
         const decoded = await AuthService.verifyAuthTokens(req)
@@ -118,52 +106,32 @@ droneServer.on('connection', async (ws, req) => {
         eventEmitter.emit(EventTypes.SIGNIN, droneId);
         droneClients.set(droneId, ws);
 
-        let fileStream: any = null;
-        
         ws.on('message', async (message: string) => {
             try {
                 const data = JSON.parse(message);
 
                 if (data.type === 'session_init') {
-                    if (cryptoService.initDroneSession(
-                        droneId, 
-                        data.key, 
-                        data.iv
-                    )) {
-                        ws.send(JSON.stringify({ type: 'session_ack' }));
-                        ws.send(JSON.stringify({ type: 'start_log' }));
-                    }
-                    return;
-                } 
+                    cryptoService.HandleSessionInit(data, droneId, ws); 
+                } else {
+                    const decryptedData = cryptoService.decryptDroneMessage(droneId, data);
 
-                const decryptedData = cryptoService.decryptDroneMessage(droneId, data);
-
-                if (decryptedData.type === 'data') eventEmitter.emit(EventTypes.RECEIVED_DATA, droneId, decryptedData, ws); 
-                if (decryptedData.type === 'info') eventEmitter.emit(EventTypes.UPDATE_DATA, droneId, decryptedData, ws); 
-                if (decryptedData.type === 'ulog') {
-                    if(!fileStream){
-                        const file = `${droneId}_${formatDate(Date.now(), "DD_MM_YYYY-HH_mm")}.ulg`
-                        const filename = path.join(LOG_DIR, file);
-                        fileStream = fs.createWriteStream(filename);
-                    }
-
-                    const data = Buffer.from(decryptedData.data, 'hex');
-                    fileStream.write(data);
+                    if (decryptedData.type === 'data') eventEmitter.emit(EventTypes.RECEIVED_DATA, droneId, decryptedData); 
+                    if (decryptedData.type === 'info') eventEmitter.emit(EventTypes.UPDATE_DATA, droneId, decryptedData); 
+                    if (decryptedData.type === 'ulog') eventEmitter.emit(EventTypes.STREAM_DATA, decryptedData, droneId);
+                    if (decryptedData.type === 'file_chunk') eventEmitter.emit(EventTypes.RECIEVE_LOG, decryptedData);
+    
+                    ws.send(JSON.stringify({ type: 'ack' }));
                 }
-
-                ws.send(JSON.stringify({ type: 'ack' }));
-
             } catch (err) {
-                console.error('Error processing message:', err);
-                ws.send(JSON.stringify({ type: 'error', message: err }));
+                console.log(err)
             }
         });
 
         ws.on('close', async () => {
             try {
-                if(fileStream) await fileStream.end();
-            } catch(err) {
-                console.error(err)
+                await LogService.CloseStream()
+            } catch (err) {
+                console.error('Error during WebSocket close:', err);
             } finally {
                 droneClients.delete(droneId);
                 eventEmitter.emit(EventTypes.LOGOUT, droneId);
@@ -173,6 +141,7 @@ droneServer.on('connection', async (ws, req) => {
         console.error(error);
     }
 });
+
 
 // Cleanup on server shutdown
 process.on('SIGINT', async () => {
@@ -200,4 +169,6 @@ process.on('SIGINT', async () => {
         process.exit(1);
     }
 });
+
+
 

@@ -178,14 +178,11 @@ class MavlinkLogStreaming:
     async def try_send_message(self, data):
         """Try to send message with error handling"""
         try:
-            payload = {
-                'type': 'ulog',
-                'data': data.hex()
-            }
-            return await self.websocket_service.send(payload)
+            return await self.websocket_service.send(data)
         except Exception as e:
             self.debug(f"Send message error: {e}")
             return False
+
 
     def start_log(self):
         """Start MAVLink logging"""
@@ -197,6 +194,7 @@ class MavlinkLogStreaming:
         )
         self.logging_started = True
 
+
     def stop_log(self):
         """Stop MAVLink logging"""
         self.mav.mav.command_long_send(
@@ -207,6 +205,7 @@ class MavlinkLogStreaming:
         )
         self.logging_started = False
 
+
     def mavlink_reader(self):
         """Thread for reading MAVLink messages"""
         measure_time_start = timer()
@@ -216,142 +215,112 @@ class MavlinkLogStreaming:
         while self.running and self.logging_started:
             try:
                 # Send heartbeat periodically
-                if timer() > next_heartbeat_time:
-                    try:
-                        self.mav.mav.heartbeat_send(
-                            mavutil.mavlink.MAV_TYPE_GCS,
-                            mavutil.mavlink.MAV_AUTOPILOT_GENERIC, 0, 0, 0
-                        )
-                        next_heartbeat_time = timer() + 1
-                    except (AttributeError, OSError) as e:
-                        self.debug(f"Heartbeat send failed: {e}")
-                        break
+                heartbeat_time = timer()
+                try:
+                    if heartbeat_time > next_heartbeat_time:
+                        self.debug('sending heartbeat')
+                        self.mav.mav.heartbeat_send(mavutil.mavlink.MAV_TYPE_GCS,
+                                mavutil.mavlink.MAV_AUTOPILOT_GENERIC, 0, 0, 0)
+                        next_heartbeat_time = heartbeat_time + 1
+                except (AttributeError, OSError) as e:
+                    self.debug(f"Heartbeat send failed: {e}")
+                    break
 
-                # Read message with timeout
                 try:
                     m, first_msg_start, num_drops = self.read_message()
-                    if m is not None:
-                        self.process_streamed_ulog_data(m, first_msg_start, num_drops)
 
-                    # Status output
                     if m is not None:
+                        if isinstance(m, list):
+                            m = bytes(m) 
+                        payload = {
+                            'type': 'ulog',
+                            'data': m.hex(),
+                            'firstMsgStart': first_msg_start,
+                            'numDrops': num_drops
+                        }
+                        self.message_queue.put(payload)
+
+                        # status output
                         measured_data += len(m)
-                    measure_time_cur = timer()
-                    dt = measure_time_cur - measure_time_start
-                    if dt > 1:
-                        sys.stdout.write('\rData Rate: {:0.1f} KB/s  Drops: {:} \033[K'.format(
-                            measured_data / dt / 1024, self.num_dropouts))
-                        sys.stdout.flush()
-                        measure_time_start = measure_time_cur
-                        measured_data = 0
+                        measure_time_cur = timer()
+                        dt = measure_time_cur - measure_time_start
+                        if dt > 1:
+                            sys.stdout.write('\rData Rate: {:0.1f} KB/s  Drops: {:} \033[K'.format(
+                                measured_data / dt / 1024, self.num_dropouts))
+                            sys.stdout.flush()
+                            measure_time_start = measure_time_cur
+                            measured_data = 0
 
                 except (OSError, IOError) as e:
                     if "Bad file descriptor" in str(e):
                         break
                     raise
-
             except LoggingCompleted:
                 break
             except Exception as e:
                 self.debug(f"MAVLink reader error: {e}")
                 break
 
-    def process_streamed_ulog_data(self, data, first_msg_start, num_drops):
-        """Process received ULog data"""
-        try:
-            if not self.got_ulog_header: # the first 16 bytes need special treatment
-                if len(data) < 16: # that's never the case anyway
-                    raise Exception('First message too short')
-                self.message_queue.put(bytearray(data[0:16]))
-                data = data[16:]
-                self.got_ulog_header = True
-
-            if self.got_header_section and num_drops > 0:
-                num_drops = min(num_drops, 25)
-                # write a dropout message. We don't really know the actual duration,
-                # so just use the number of drops * 10 ms
-                self.message_queue.put(bytearray([2, 0, 79, num_drops*10, 0]))
-
-            if num_drops > 0:
-                self.send_ulog_messages(self.ulog_message)
-                self.ulog_message = []
-                if first_msg_start == 255:
-                    return # no useful information in this message: drop it
-                data = data[first_msg_start:]
-                first_msg_start = 0
-
-            if first_msg_start == 255 and len(self.ulog_message) > 0:
-                self.ulog_message.extend(data)
-                return
-
-            if len(self.ulog_message) > 0:
-                self.message_queue.put(bytearray(self.ulog_message + data[:first_msg_start]))
-                self.ulog_message = []
-
-            remaining_data = self.send_ulog_messages(data[first_msg_start:])
-            self.ulog_message = remaining_data  # store the rest for the next message
-
-        except Exception as e:
-            self.debug(f"ULog processing error: {e}")
-
-    def send_ulog_messages(self, data):
-        ''' send ulog data w/o integrity checking, assuming data starts with a
-        valid ulog message. returns the remaining data at the end. '''
-        while len(data) > 2:
-            message_length = data[0] + data[1] * 256 + 3 # 3=ULog msg header
-            if message_length > len(data):
-                break
-            self.message_queue.put(bytearray(data[:message_length]))
-            data = data[message_length:]
-        return data
 
     def read_message(self):
-        """Read a MAVLink message"""
-        m = self.mav.recv_match(
-            type=['LOGGING_DATA_ACKED', 'LOGGING_DATA', 'COMMAND_ACK'],
-            blocking=True,
-            timeout=0.05
-        )
+        ''' read a single mavlink message, handle ACK & return a tuple of (data, first
+        message start, num dropouts) '''
+        m = self.mav.recv_match(type=['LOGGING_DATA_ACKED',
+                            'LOGGING_DATA', 'COMMAND_ACK'], blocking=True,
+                            timeout=0.05)
         
-        if m is None:
-            return None, 0, 0
-        self.debug(m, 3)
+        if m is not None:
+            self.debug(m, 3)
 
-        if m.get_type() == 'COMMAND_ACK':
-            if m.command == mavutil.mavlink.MAV_CMD_LOGGING_START and not self.got_header_section:
-                if m.result == 0:
-                    self.logging_started = True
-                    self.debug('Logging started. Waiting for Header...')
-                else:
-                    self.debug(f'Logging start failed: {m.result}')
-            elif m.command == mavutil.mavlink.MAV_CMD_LOGGING_STOP and m.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
-                raise LoggingCompleted()
-            return None, 0, 0
+            if m.get_type() == 'COMMAND_ACK':
+                if m.command == mavutil.mavlink.MAV_CMD_LOGGING_START and not self.got_header_section:
+                    if m.result == 0:
+                        self.logging_started = True
+                        print('Logging started. Waiting for Header...')
+                    else:
+                        raise Exception('Logging start failed', m.result)
+                elif m.command == mavutil.mavlink.MAV_CMD_LOGGING_STOP and m.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
+                    raise LoggingCompleted()
+                return None, 0, 0
+            
+            # m is either 'LOGGING_DATA_ACKED' or 'LOGGING_DATA':
+            is_newer, num_drops = self.check_sequence(m.sequence)
 
-        is_newer, num_drops = self.check_sequence(m.sequence)
+            # return an ack, even we already sent it for the same sequence,
+            # because the ack could have been dropped
+            if m.get_type() == 'LOGGING_DATA_ACKED':
+                self.mav.mav.logging_ack_send(self.mav.target_system,
+                        self.target_component, m.sequence)
 
-        if m.get_type() == 'LOGGING_DATA_ACKED':
-            self.mav.mav.logging_ack_send(
-                self.mav.target_system,
-                self.target_component,
-                m.sequence
-            )
+            if is_newer:
+                if num_drops > 0:
+                    self.num_dropouts += num_drops
 
-        if is_newer:
-            if num_drops > 0:
-                self.num_dropouts += num_drops
+                if m.get_type() == 'LOGGING_DATA':
+                    if not self.got_header_section:
+                        print(f'{m}')
+                        self.logging_started = True
+                        self.got_header_section = True
 
-            if m.get_type() == 'LOGGING_DATA':
-                if not self.got_header_section:
-                    self.debug(f'Header received in {timer()-self.start_time:.2f}s')
-                    self.logging_started = True
-                    self.got_header_section = True
-            self.last_sequence = m.sequence
-            return m.data[:m.length], m.first_message_offset, num_drops
-        else:
-            self.debug('dup/reordered message '+str(m.sequence))
+                data = m.data[:m.length]
+                if not self.got_ulog_header:
+                    if len(data) >= 16:
+                        # Verify ULog magic bytes
+                        if data[:7] == b'ULog\x01\x12\x35':
+                            self.got_ulog_header = True
+                            print('Valid ULog header received')
+                    else:
+                        print('Initial message too short for ULog header')
+
+
+                self.last_sequence = m.sequence
+                return m.data[:m.length], m.first_message_offset, num_drops
+            
+            else:
+                self.debug('dup/reordered message '+str(m.sequence))
 
         return None, 0, 0
+
 
     def check_sequence(self, seq):
         ''' check if a sequence is newer than the previously received one & if
@@ -369,6 +338,7 @@ class MavlinkLogStreaming:
             if self.last_sequence - seq > (1<<15):
                 return True, (1<<16) - self.last_sequence - 1 + seq
             return False, 0
+
 
     async def cleanup(self):
         """Improved cleanup method"""

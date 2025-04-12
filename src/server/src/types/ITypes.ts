@@ -6,7 +6,9 @@ export enum EventTypes {
     SET_OFFLINE_STATUS = 'SET_OFFLINE_STATUS',
     UPDATE_DATA = 'UPDATE_DATA',
     KEY_EXCHANGE = 'KEY_EXCHANGE',
-    SAVE_LOG = 'SAVE_LOG'
+    SAVE_LOG = 'SAVE_LOG',
+    STREAM_DATA = 'STREAM_DATA',
+    RECIEVE_LOG = 'RECIEVE_LOG',
 }
 
 export enum CompressionType {

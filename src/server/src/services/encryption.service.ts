@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { DroneSession } from '../types/ITypes';
 import { generatePassphrase } from '../utils/helpers/CryptoHelper';
+import WebSocket from 'ws';
 
 export class CryptoService {
     private static instance: CryptoService;
@@ -17,6 +18,18 @@ export class CryptoService {
             CryptoService.instance = new CryptoService();
         }
         return CryptoService.instance;
+    }
+
+    public HandleSessionInit(data:any, droneId:string, ws:WebSocket): void {
+        if (this.initDroneSession(droneId, data.key, data.iv)) {
+            ws.send(JSON.stringify({ type: 'session_ack' }));
+            // ws.send(JSON.stringify({ type: 'start_log' }));
+        } else {
+            ws.send(JSON.stringify({ 
+                type: 'error', 
+                message: 'Failed to initialize session' 
+            }));
+        }
     }
 
     private generateKeyPair(): crypto.KeyPairSyncResult<string, string> {

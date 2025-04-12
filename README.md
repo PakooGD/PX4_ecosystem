@@ -26,7 +26,7 @@
 3. Now we can create database with
 - CREATE DATABASE drone_db;
 4. We can configurate new user to deal with this DB
-- CREATE USER drone_user WITH PASSWORD 'yourpassword';
+- CREATE USER drone_user WITH PASSWORD 'dsk_supply_password';
 - GRANT ALL PRIVILEGES ON DATABASE drone_db TO drone_user;
 - ALTER DATABASE drone_db OWNER TO drone_user;
 5. Now we can quit

@@ -1,9 +1,8 @@
 import express from 'express';
 import { EventEmitter } from 'events';
 import { EventTypes } from '../types/ITypes' 
-import { DroneHandler } from '../services/drone.service';
-import { AuthService } from '../services/auth.service';
 import { AuthController, DroneController } from '../controllers';
+import { CryptoService, LogService, AuthService, DroneHandler } from '../services';
 
 export const eventEmitter = new EventEmitter();
 
@@ -12,7 +11,8 @@ eventEmitter.on(EventTypes.LOGOUT, AuthService.HandleLogout);
 eventEmitter.on(EventTypes.SET_OFFLINE_STATUS, AuthService.SetAllDronesOffline);
 eventEmitter.on(EventTypes.SIGNIN, AuthService.SetOnlineStatus);
 eventEmitter.on(EventTypes.UPDATE_DATA, AuthService.UpdateData);
-// eventEmitter.on(EventTypes.SAVE_LOG, DroneHandler.saveLog);
+eventEmitter.on(EventTypes.STREAM_DATA, LogService.MavLogStream);
+eventEmitter.on(EventTypes.RECIEVE_LOG, LogService.LogReciever);
 
 const router = express.Router();
 
